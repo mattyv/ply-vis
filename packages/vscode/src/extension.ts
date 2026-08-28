@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ResultSource, type LoadState, type WorkspaceRoot } from './core/result-source';
+import { firstUseMessage } from './core/first-use';
 import { parseViewerRequest } from './host/bridge';
 import { StateStore } from './host/state-store';
 import { PlyPanel } from './vscode/panel';
@@ -10,9 +11,11 @@ import { WorkspaceController } from './vscode/workspace-controller';
 class RunsView implements vscode.TreeDataProvider<vscode.TreeItem> {
   private readonly changed = new vscode.EventEmitter<void>();
   public readonly onDidChangeTreeData = this.changed.event;
-  private items: vscode.TreeItem[] = [new vscode.TreeItem('No complete visual run loaded')];
-  public update(root: WorkspaceRoot, state: LoadState): void {
-    const items: vscode.TreeItem[] = [new vscode.TreeItem(root.name, vscode.TreeItemCollapsibleState.None)];
+  private items: vscode.TreeItem[] = [new vscode.TreeItem(firstUseMessage(false))];
+  public update(root: WorkspaceRoot | undefined, state: LoadState): void {
+    const items: vscode.TreeItem[] = root ? [new vscode.TreeItem(root.name, vscode.TreeItemCollapsibleState.None)] : [];
+    if (!root) items.push(new vscode.TreeItem(firstUseMessage(false)));
+    else if (!state.snapshot && !state.error) items.push(new vscode.TreeItem(firstUseMessage(true)));
     if (state.snapshot) items.push(new vscode.TreeItem(`${state.snapshot.envelope.run.id} · ${state.snapshot.entry.outcome}`));
     if (state.error) { const error = new vscode.TreeItem(`Error: ${state.error}`); error.tooltip = state.snapshot ? 'Showing the last complete run.' : state.error; items.push(error); }
     this.items = items; this.changed.fire();
@@ -28,7 +31,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const navigator = new SourceNavigator(new VsCodeEditor());
   const panel = new PlyPanel(context.extensionUri, state, navigator);
   const runsView = new RunsView();
-  const workspace = new WorkspaceController(files, results, state, (root, load) => { runsView.update(root, load); panel.update(root, load); });
+  const workspace = new WorkspaceController(files, results, state, (root, load) => { runsView.update(root, load); if (root) panel.update(root, load); });
   context.subscriptions.push(panel, workspace, vscode.window.registerTreeDataProvider('ply.visualRuns', runsView));
   context.subscriptions.push(vscode.commands.registerCommand('ply.refreshVisual', () => workspace.refresh()));
   context.subscriptions.push(vscode.commands.registerCommand('ply.selectRoot', () => workspace.chooseRoot()));

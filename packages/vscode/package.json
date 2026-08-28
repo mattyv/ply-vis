@@ -11,7 +11,7 @@
   "type": "commonjs",
   "engines": { "vscode": "^1.91.0" },
   "categories": ["Visualization", "Other"],
-  "activationEvents": ["onCommand:ply.openVisual", "onCommand:ply.refreshVisual", "onCommand:ply.selectRoot", "workspaceContains:ply.yaml"],
+  "activationEvents": ["onCommand:ply.openVisual", "onCommand:ply.refreshVisual", "onCommand:ply.selectRoot", "workspaceContains:**/ply.yaml"],
   "main": "./out/src/extension.js",
   "contributes": {
     "viewsContainers": { "activitybar": [{ "id": "plyVisuals", "title": "Ply", "icon": "media/ply.svg" }] },

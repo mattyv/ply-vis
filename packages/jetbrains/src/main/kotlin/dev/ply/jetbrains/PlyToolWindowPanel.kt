@@ -2,6 +2,7 @@ package dev.ply.jetbrains
 
 import com.google.gson.Gson
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
@@ -9,6 +10,9 @@ import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
+import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.BulkFileListener
+import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.handler.CefLoadHandlerAdapter
@@ -27,7 +31,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
     private val viewState = projectState.viewState
     private val artifacts = projectState.artifacts
     private val roots = JComboBox<Path>()
-    private val status = JBLabel("No published Ply view")
+    private val status = JBLabel(PlyFirstUseState.message(hasSpecs = false))
     private val browser: JBCefBrowser?
     private var query: JBCefJSQuery? = null
     private var loaded: LoadedPlyRun? = null
@@ -45,6 +49,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
 
         refresh.addActionListener { refreshRootsAndLoad() }
         roots.addActionListener { if (!suppressRootEvents) loadSelectedRoot() }
+        installWorkspaceWatcher()
 
         browser = if (JBCefApp.isSupported()) JBCefBrowser() else null
         if (browser == null) {
@@ -56,6 +61,20 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         }
         refreshRootsAndLoad()
         poller.start()
+    }
+
+    private fun installWorkspaceWatcher() {
+        project.messageBus.connect(this).subscribe(VirtualFileManager.VFS_CHANGES, object : BulkFileListener {
+            override fun after(events: List<VFileEvent>) {
+                val projectRoots = PlyArtifactDiscovery.projectRoots(project)
+                val relevant = events.any { event ->
+                    runCatching { PlyWatchPaths.isRelevant(Path.of(event.path), projectRoots) }.getOrDefault(false)
+                }
+                if (relevant) ApplicationManager.getApplication().invokeLater {
+                    if (!project.isDisposed) refreshRootsAndLoad()
+                }
+            }
+        })
     }
 
     private fun installBridge(jcef: JBCefBrowser) {
@@ -112,7 +131,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
 
     private fun loadSelectedRoot() {
         val root = roots.selectedItem as? Path ?: run {
-            status.text = "No ply.yaml found"
+            status.text = PlyFirstUseState.message(hasSpecs = false)
             return
         }
         val state = artifacts.reload(root)
@@ -122,7 +141,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         status.text = when {
             state.snapshot != null && state.error != null -> "Keeping run ${state.snapshot.entry.id}: ${state.error}"
             state.snapshot != null -> "Showing run ${state.snapshot.entry.id}"
-            else -> state.error ?: "No published Ply view"
+            else -> state.error ?: PlyFirstUseState.message(hasSpecs = true)
         }
         if (state.error != null) {
             sendHostError(status.text)

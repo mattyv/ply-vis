@@ -1,7 +1,13 @@
-import { isAbsolute, posix } from 'node:path';
+import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 
 export const INDEX_RELATIVE_PATH = 'target/ply/view.json';
-export interface FileReader { readText(path: string): Promise<string>; exists(path: string): Promise<boolean> }
+export const DISCOVERY_EXCLUDED_DIRECTORIES = new Set(['.git', 'target', 'node_modules', 'build', '.gradle', '.gradle-user', '.intellijPlatform']);
+const WATCH_EXCLUDED_DIRECTORIES = new Set([...DISCOVERY_EXCLUDED_DIRECTORIES].filter((directory) => directory !== 'target'));
+export interface FileReader {
+  readText(path: string): Promise<string>;
+  exists(path: string): Promise<boolean>;
+  findPlySpecs(root: string): Promise<string[]>;
+}
 export interface WorkspaceRoot { readonly name: string; readonly path: string }
 export type RunOutcome = 'clean' | 'violation' | 'timeout' | 'missing_evidence' | 'narrowed_evidence';
 export interface RunIndexEntry { readonly id: string; readonly path: string; readonly completedAt: string; readonly outcome: RunOutcome }
@@ -99,8 +105,35 @@ export function parseVisualEnvelope(value: unknown): VisualEnvelope {
 }
 
 export async function discoverPlyRoots(roots: readonly WorkspaceRoot[], files: FileReader): Promise<WorkspaceRoot[]> {
-  const found = await Promise.all(roots.map(async (root) => await files.exists(posix.join(root.path, 'ply.yaml')) ? root : undefined));
-  return found.filter((root): root is WorkspaceRoot => root !== undefined);
+  const discovered = await Promise.all(roots.map(async (workspace) => {
+    const boundary = resolve(workspace.path);
+    const specs = await files.findPlySpecs(boundary);
+    return specs.flatMap((spec): WorkspaceRoot[] => {
+      const absolute = resolve(spec);
+      const fromBoundary = relative(boundary, absolute);
+      if (basename(absolute) !== 'ply.yaml' || fromBoundary === '..' || fromBoundary.startsWith(`..${sep}`) || isAbsolute(fromBoundary)) return [];
+      const parts = fromBoundary.split(sep);
+      if (parts.some((part) => DISCOVERY_EXCLUDED_DIRECTORIES.has(part))) return [];
+      const path = dirname(absolute);
+      const nested = relative(boundary, path);
+      return [{ name: nested ? `${workspace.name}: ${nested}` : workspace.name, path }];
+    });
+  }));
+  const unique = new Map<string, WorkspaceRoot>();
+  for (const root of discovered.flat()) unique.set(root.path, root);
+  return [...unique.values()].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+export function shouldHandleWorkspaceChange(workspacePath: string, changedPath: string): boolean {
+  const boundary = resolve(workspacePath);
+  const absolute = resolve(changedPath);
+  const fromBoundary = relative(boundary, absolute);
+  if (!fromBoundary || fromBoundary === '..' || fromBoundary.startsWith(`..${sep}`) || isAbsolute(fromBoundary)) return false;
+  const parts = fromBoundary.split(sep);
+  if (parts.some((part) => WATCH_EXCLUDED_DIRECTORIES.has(part))) return false;
+  if (parts.at(-1) === 'ply.yaml') return !parts.some((part) => DISCOVERY_EXCLUDED_DIRECTORIES.has(part));
+  const target = parts.findIndex((part, index) => part === 'target' && parts[index + 1] === 'ply');
+  return target >= 0 && parts.at(-1)?.endsWith('.json') === true;
 }
 
 export class ResultSource {
@@ -112,7 +145,12 @@ export class ResultSource {
     const sequence = (this.reloadSequence.get(root.path) ?? 0) + 1;
     this.reloadSequence.set(root.path, sequence);
     try {
-      const index = parseRunIndex(JSON.parse(await this.files.readText(posix.join(root.path, INDEX_RELATIVE_PATH))) as unknown);
+      const indexPath = posix.join(root.path, INDEX_RELATIVE_PATH);
+      if (!await this.files.exists(indexPath)) {
+        const snapshot = this.lastGood.get(root.path);
+        return snapshot ? { snapshot, error: 'The published Ply visual index was removed.' } : {};
+      }
+      const index = parseRunIndex(JSON.parse(await this.files.readText(indexPath)) as unknown);
       const entry = index.runs.find((run) => run.id === index.currentRun)!;
       const envelope = parseVisualEnvelope(JSON.parse(await this.files.readText(posix.join(root.path, 'target/ply', entry.path))) as unknown);
       if (envelope.run.id !== entry.id || envelope.run.completedAt !== entry.completedAt || envelope.run.outcome !== entry.outcome) {

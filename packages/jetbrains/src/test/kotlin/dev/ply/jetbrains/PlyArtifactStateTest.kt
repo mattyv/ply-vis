@@ -1,11 +1,29 @@
 package dev.ply.jetbrains
 
 import java.nio.file.Path
+import java.nio.file.NoSuchFileException
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class PlyArtifactStateTest {
+    @Test
+    fun `treats a missing visual index as no completed runs without leaking the file error`() {
+        val root = Path.of("build/tmp/no-runs").toAbsolutePath().normalize()
+        val state = PlyArtifactState { throw NoSuchFileException(root.resolve("target/ply/view.json").toString()) }
+
+        assertEquals(PlyArtifactLoadState(), state.reload(root))
+    }
+
+    @Test
+    fun `does not mistake a missing indexed artifact for a first run`() {
+        val root = Path.of("build/tmp/missing-artifact").toAbsolutePath().normalize()
+        val missing = root.resolve("target/ply/views/r1/visual.json")
+        val state = PlyArtifactState { throw NoSuchFileException(missing.toString()) }
+
+        assertEquals(missing.toString(), state.reload(root).error)
+    }
+
     @Test
     fun `keeps the last complete run for the same root after a failed reload`() {
         val root = Path.of("build/tmp/root").toAbsolutePath().normalize()

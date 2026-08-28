@@ -1,5 +1,6 @@
 import type { Disposable } from './surface';
 import type { LoadState, WorkspaceRoot } from '../core/result-source';
+import { firstUseMessage } from '../core/first-use';
 import { artifactMessage, errorMessage, parseViewerRequest, restoreStateMessage } from './bridge';
 import type { StateStore } from './state-store';
 import type { SourceNavigator } from '../vscode/source-navigation';
@@ -37,6 +38,6 @@ export class PanelController implements Disposable {
     }
     if (message.type === 'ready') await this.surface.postMessage(restoreStateMessage(this.state.viewState()));
     if (this.loadState.snapshot) await this.surface.postMessage(artifactMessage(this.loadState.snapshot.envelope));
-    else await this.surface.postMessage(errorMessage(this.loadState.error ?? 'No complete Ply visual run is available.'));
+    else await this.surface.postMessage(errorMessage(this.loadState.error ?? firstUseMessage(true)));
   }
 }

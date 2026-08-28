@@ -18,6 +18,16 @@ class MemoryState implements KeyValueState {
 }
 
 describe('panel lifecycle', () => {
+  it('explains that specs exist but no completed visual run has been published', async () => {
+    const surface = new Surface();
+    const controller = new PanelController(surface, new StateStore(new MemoryState()), { open: async () => undefined } as never, { error: () => undefined });
+    controller.update({ name: 'r', path: '/r' }, {});
+
+    await surface.listener?.({ channel: 'ply-vis', version: 1, type: 'ready' });
+
+    expect(surface.messages.at(-1)).toMatchObject({ type: 'error', message: expect.stringContaining('no completed visual runs have been published yet') });
+  });
+
   it('restores state and serves the last loaded artifact when the viewer becomes ready', async () => {
     const surface = new Surface(); const state = new StateStore(new MemoryState());
     await state.persistViewState({ selectedId: 'fn' });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { discoverPlyRoots, parseRunIndex, parseVisualEnvelope, ResultSource, type FileReader, type VisualEnvelope } from './result-source';
+import { discoverPlyRoots, parseRunIndex, parseVisualEnvelope, ResultSource, shouldHandleWorkspaceChange, type FileReader, type VisualEnvelope } from './result-source';
 
 const envelope = (id = 'run-1'): VisualEnvelope => ({
   protocolVersion: 1, run: { id, completedAt: '2026-08-28T00:00:00Z', root: { path: '.' }, tool: { name: 'cargo-ply', version: 'build-1' }, outcome: 'clean' },
@@ -11,6 +11,9 @@ class MemoryFiles implements FileReader {
   public constructor(public readonly values: Record<string, string>) {}
   public async readText(path: string): Promise<string> { const value = this.values[path]; if (value === undefined) throw new Error(`missing ${path}`); return value; }
   public async exists(path: string): Promise<boolean> { return path in this.values; }
+  public async findPlySpecs(root: string): Promise<string[]> {
+    return Object.keys(this.values).filter((path) => path.startsWith(`${root}/`) && path.endsWith('/ply.yaml'));
+  }
 }
 
 describe('Ply result discovery', () => {
@@ -18,6 +21,36 @@ describe('Ply result discovery', () => {
     const files = new MemoryFiles({ '/a/ply.yaml': '', '/c/ply.yaml': '' });
     await expect(discoverPlyRoots([{ name: 'a', path: '/a' }, { name: 'b', path: '/b' }, { name: 'c', path: '/c' }], files))
       .resolves.toEqual([{ name: 'a', path: '/a' }, { name: 'c', path: '/c' }]);
+  });
+  it('discovers nested specs and excludes generated or dependency trees', async () => {
+    const files = new MemoryFiles({
+      '/repo/crates/a/ply.yaml': '',
+      '/repo/services/b/ply.yaml': '',
+      '/repo/.git/fixtures/ply.yaml': '',
+      '/repo/target/copied/ply.yaml': '',
+      '/repo/node_modules/pkg/ply.yaml': '',
+      '/repo/build/generated/ply.yaml': '',
+      '/repo/.gradle/cache/ply.yaml': '',
+      '/repo/.gradle-user/cache/ply.yaml': '',
+      '/repo/.intellijPlatform/cache/ply.yaml': '',
+    });
+    await expect(discoverPlyRoots([{ name: 'repo', path: '/repo' }], files)).resolves.toEqual([
+      { name: 'repo: crates/a', path: '/repo/crates/a' },
+      { name: 'repo: services/b', path: '/repo/services/b' },
+    ]);
+  });
+  it('rejects discovered specs outside the workspace boundary', async () => {
+    const files = new MemoryFiles({ '/repo/ply.yaml': '', '/repo-other/ply.yaml': '' });
+    files.findPlySpecs = async () => ['/repo/ply.yaml', '/repo-other/ply.yaml'];
+    await expect(discoverPlyRoots([{ name: 'repo', path: '/repo' }], files)).resolves.toEqual([{ name: 'repo', path: '/repo' }]);
+  });
+  it('matches recursive spec and artifact changes without watching excluded trees or paths outside the workspace', () => {
+    expect(shouldHandleWorkspaceChange('/repo', '/repo/crates/a/ply.yaml')).toBe(true);
+    expect(shouldHandleWorkspaceChange('/repo', '/repo/crates/a/target/ply/view.json')).toBe(true);
+    expect(shouldHandleWorkspaceChange('/repo', '/repo/crates/a/target/ply/views/r1/visual.json')).toBe(true);
+    expect(shouldHandleWorkspaceChange('/repo', '/repo/.gradle/cache/ply.yaml')).toBe(false);
+    expect(shouldHandleWorkspaceChange('/repo', '/repo/node_modules/pkg/target/ply/view.json')).toBe(false);
+    expect(shouldHandleWorkspaceChange('/repo', '/repo-other/ply.yaml')).toBe(false);
   });
   it('accepts only the strict v1 index and contained immutable JSON paths', () => {
     expect(parseRunIndex(index).currentRun).toBe('run-1');
@@ -49,5 +82,9 @@ describe('VisualEnvelope compatibility', () => {
     expect(first.snapshot?.envelope.run.id).toBe('run-1');
     expect(second.snapshot).toBe(first.snapshot);
     expect(second.error).toBe('A Ply visual artifact is not valid JSON.');
+  });
+  it('treats a missing index as specs found with no completed visual runs', async () => {
+    const source = new ResultSource(new MemoryFiles({ '/root/ply.yaml': '' }));
+    await expect(source.reload({ name: 'root', path: '/root' })).resolves.toEqual({});
   });
 });

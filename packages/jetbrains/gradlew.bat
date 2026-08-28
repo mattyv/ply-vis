@@ -35,6 +35,19 @@ set APP_HOME=%DIRNAME%
 @rem Resolve any "." and ".." in APP_HOME to make it shorter.
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
+@rem Keep wrapper and dependency caches out of the checkout. PLY_VIS_CACHE_HOME
+@rem provides one shared override for Gradle and IntelliJ Platform caches.
+if defined PLY_VIS_CACHE_HOME set "PLY_VIS_EFFECTIVE_CACHE_HOME=%PLY_VIS_CACHE_HOME%"& goto plyVisCacheReady
+if defined XDG_CACHE_HOME set "PLY_VIS_EFFECTIVE_CACHE_HOME=%XDG_CACHE_HOME%\ply-vis"& goto plyVisCacheReady
+if defined LOCALAPPDATA set "PLY_VIS_EFFECTIVE_CACHE_HOME=%LOCALAPPDATA%\ply-vis\cache"& goto plyVisCacheReady
+if defined USERPROFILE set "PLY_VIS_EFFECTIVE_CACHE_HOME=%USERPROFILE%\.cache\ply-vis"& goto plyVisCacheReady
+echo ERROR: Cannot choose an external cache. Set PLY_VIS_CACHE_HOME or USERPROFILE. 1>&2
+goto fail
+:plyVisCacheReady
+if defined GRADLE_USER_HOME goto gradleUserHomeReady
+set "GRADLE_USER_HOME=%PLY_VIS_EFFECTIVE_CACHE_HOME%\gradle"
+:gradleUserHomeReady
+
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 
@@ -74,7 +87,7 @@ set CLASSPATH=
 
 
 @rem Execute Gradle
-"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" %*
+"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" "-Porg.jetbrains.intellij.platform.intellijPlatformCache=%PLY_VIS_EFFECTIVE_CACHE_HOME%\intellij-platform" %*
 
 :end
 @rem End local scope for the variables with windows NT shell

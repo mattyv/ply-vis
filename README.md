@@ -18,6 +18,35 @@ VS Code and JetBrains use the same viewer. This keeps interaction, rendering, an
 
 Visual runs are snapshots of verification evidence, not graphical diffs. Ply Visual deliberately omits code-change highlighting. Your editor and version-control tools already handle changes; this project focuses on what the specification and its verification evidence mean.
 
+## Finding Ply projects
+
+Ply Visual searches every open workspace or project recursively for `ply.yaml`.
+It skips generated and dependency directories such as `.git`, `target`,
+`node_modules`, `build`, and Gradle caches, so monorepo packages work without
+moving their specs to the workspace root.
+
+The sidebar and tool window distinguish the two common first-use states:
+
+- **No Ply specs found** means the open workspace does not contain a discoverable
+  `ply.yaml`.
+- **No completed visual runs** means a spec was found, but Ply has not published
+  `target/ply/view.json` for it yet. Run
+  `cargo ply verify <spec-directory> --publish-view` to publish one.
+
+The IDE extensions only observe completed artifacts. They never start or manage
+Ply runs.
+
+## Install locally
+
+Build, package, and install the VS Code extension from this repository:
+
+```sh
+npm run install:local
+```
+
+Reload the VS Code window after installation so the running extension host picks
+up the new package.
+
 ## Development
 
 Install dependencies and run the shared checks from the repository root:
@@ -36,5 +65,10 @@ The Playwright suites cover the shared viewer and its VS Code webview host. The 
 cd packages/jetbrains
 ./gradlew test
 ```
+
+JetBrains builds keep Gradle downloads and IntelliJ Platform caches outside the
+checkout, under the current user's cache directory. Set `PLY_VIS_CACHE_HOME` to
+choose a different shared cache root, or `GRADLE_USER_HOME` to override Gradle's
+cache alone.
 
 Ply Visual reads artifacts produced by Ply. It does not replace Ply's verifier or define the artifact format independently.

@@ -12,6 +12,12 @@ Build `@ply/vis` first so `../ply-vis/dist` exists. Then run:
 
 The build needs JDK 21. It packages the shared viewer and a small offline JCEF shell in the plugin archive.
 
+Gradle downloads and IntelliJ Platform files are cached outside the repository:
+`$XDG_CACHE_HOME/ply-vis` when set, otherwise `$HOME/.cache/ply-vis` on Unix, or
+the local application-data directory on Windows. Set `PLY_VIS_CACHE_HOME` to
+move both caches. An existing `GRADLE_USER_HOME` still takes precedence for
+Gradle itself.
+
 ## Live JCEF smoke test
 
 Open a project that contains `ply.yaml` and a published `target/ply/view.json`. Start the test IDE with JCEF debugging enabled:

@@ -88,11 +88,21 @@ APP_BASE_NAME=${0##*/}
 # Discard cd standard output in case $CDPATH is set (https://github.com/gradle/gradle/issues/25036)
 APP_HOME=$( cd -P "${APP_HOME:-./}" > /dev/null && printf '%s\n' "$PWD" ) || exit
 
-# Keep wrapper and dependency caches inside this checkout by default. This makes
-# the JetBrains build reproducible in CI/sandboxes and avoids mutating a user's
-# global Gradle state. Callers can still supply GRADLE_USER_HOME explicitly.
+# Keep wrapper and dependency caches out of the checkout. PLY_VIS_CACHE_HOME
+# provides one shared override for Gradle and IntelliJ Platform caches.
+if [ -n "${PLY_VIS_CACHE_HOME:-}" ]; then
+    ply_vis_cache_home=$PLY_VIS_CACHE_HOME
+elif [ -n "${XDG_CACHE_HOME:-}" ]; then
+    ply_vis_cache_home=$XDG_CACHE_HOME/ply-vis
+elif [ -n "${HOME:-}" ]; then
+    ply_vis_cache_home=$HOME/.cache/ply-vis
+else
+    echo "Cannot choose an external cache: set PLY_VIS_CACHE_HOME or HOME." >&2
+    exit 1
+fi
+
 if [ -z "${GRADLE_USER_HOME:-}" ]; then
-    GRADLE_USER_HOME="$APP_HOME/.gradle-user"
+    GRADLE_USER_HOME=$ply_vis_cache_home/gradle
     export GRADLE_USER_HOME
 fi
 
@@ -222,6 +232,7 @@ set -- \
         "-Dorg.gradle.appname=$APP_BASE_NAME" \
         -classpath "$CLASSPATH" \
         -jar "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" \
+        "-Porg.jetbrains.intellij.platform.intellijPlatformCache=$ply_vis_cache_home/intellij-platform" \
         "$@"
 
 # Stop when "xargs" is not available.

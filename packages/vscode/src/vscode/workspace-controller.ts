@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
-import { discoverPlyRoots, type LoadState, ResultSource, type WorkspaceRoot } from '../core/result-source';
+import { discoverPlyRoots, type LoadState, ResultSource, shouldHandleWorkspaceChange, type WorkspaceRoot } from '../core/result-source';
 import type { StateStore } from '../host/state-store';
 import type { NodeFileReader } from './vscode-adapters';
 
-export interface ResultListener { (root: WorkspaceRoot, state: LoadState): void }
+export const WATCH_PATTERNS = ['**/ply.yaml', '**/target/ply/view.json', '**/target/ply/**/*.json'] as const;
+export interface ResultListener { (root: WorkspaceRoot | undefined, state: LoadState): void }
 
 export class WorkspaceController implements vscode.Disposable {
   private roots: WorkspaceRoot[] = [];
@@ -21,18 +22,19 @@ export class WorkspaceController implements vscode.Disposable {
     await this.discover();
     const folders = vscode.workspace.workspaceFolders ?? [];
     for (const folder of folders) {
-      for (const pattern of ['ply.yaml', 'target/ply/view.json', 'target/ply/**/*.json']) {
+      for (const pattern of WATCH_PATTERNS) {
         const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, pattern));
-        watcher.onDidCreate(() => this.schedule()); watcher.onDidChange(() => this.schedule()); watcher.onDidDelete(() => this.schedule());
+        const handle = (uri: vscode.Uri) => { if (shouldHandleWorkspaceChange(folder.uri.fsPath, uri.fsPath)) this.schedule(); };
+        watcher.onDidCreate(handle); watcher.onDidChange(handle); watcher.onDidDelete(handle);
         this.watchers.push(watcher);
       }
     }
-    if (this.selected) await this.refresh();
+    if (this.selected) await this.refresh(); else this.listener(undefined, {});
   }
 
   public async chooseRoot(): Promise<WorkspaceRoot | undefined> {
     await this.discover();
-    if (!this.roots.length) { await vscode.window.showInformationMessage('No workspace root containing ply.yaml is open.'); return undefined; }
+    if (!this.roots.length) { await vscode.window.showInformationMessage('No Ply specs found in this workspace.'); return undefined; }
     const selected = this.roots.length === 1 ? this.roots[0] : await vscode.window.showQuickPick(this.roots.map((root) => ({ label: root.name, description: root.path, root })),
       { placeHolder: 'Select the Ply workspace root to inspect' }).then((item) => item?.root);
     if (!selected) return undefined;
@@ -62,6 +64,6 @@ export class WorkspaceController implements vscode.Disposable {
 
   private schedule(): void {
     if (this.debounce) clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => { void this.discover().then(() => this.refresh()); }, 150);
+    this.debounce = setTimeout(() => { void this.discover().then(async () => { if (this.selected) await this.refresh(); else this.listener(undefined, {}); }); }, 150);
   }
 }
