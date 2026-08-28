@@ -1,0 +1,18 @@
+<idea-plugin>
+    <id>dev.ply.jetbrains</id>
+    <name>Ply Visual</name>
+    <vendor>Ply</vendor>
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.jcef</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Ply" anchor="right" icon="/icons/ply.svg"
+            factoryClass="dev.ply.jetbrains.PlyToolWindowFactory" />
+        <postStartupActivity implementation="dev.ply.jetbrains.PlyStartupActivity" />
+    </extensions>
+    <actions>
+        <action id="dev.ply.jetbrains.open" class="dev.ply.jetbrains.OpenPlyToolWindowAction"
+            text="Open Ply Visual" description="Open the Ply visual navigator">
+            <add-to-group group-id="ToolsMenu" anchor="last" />
+        </action>
+    </actions>
+</idea-plugin>

@@ -1,0 +1,7 @@
+{
+  "protocolVersion": 1,
+  "run": { "id": "fixture-run", "completedAt": "2026-08-28T00:00:00Z", "root": { "path": "." }, "tool": { "name": "cargo-ply", "version": "fixture" }, "outcome": "clean" },
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"10\" height=\"10\"/></svg>",
+  "elements": { "fixture": { "id": "fixture", "kind": "function", "label": "fixture", "evidence": { "verdict": "opaque", "statuses": [], "reused": false }, "diagnosticIds": [], "source": { "file": "src/lib.rs", "startLine": 1, "startColumn": 4, "endLine": 1, "endColumn": 24 } } },
+  "diagnostics": []
+}

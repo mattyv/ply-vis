@@ -1,0 +1,14 @@
+{
+  "protocolVersion": 1,
+  "run": { "id": "run-001", "completedAt": "2026-08-28T05:00:00Z", "root": { "path": "/workspace/demo" }, "tool": { "name": "ply", "version": "0.1.0+abc123" }, "outcome": "violation" },
+  "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"640\" height=\"300\" viewBox=\"0 0 640 300\"><g id=\"workspace\" data-element-id=\"workspace\"><rect x=\"10\" y=\"10\" width=\"620\" height=\"280\" fill=\"#eef2f6\"/><text x=\"20\" y=\"35\">Demo</text></g><g id=\"component\" data-element-id=\"component\"><rect x=\"40\" y=\"60\" width=\"250\" height=\"180\" fill=\"#fff\" stroke=\"#445\"/><text x=\"55\" y=\"85\">Ledger</text></g><g id=\"function\" data-element-id=\"function\"><rect x=\"70\" y=\"105\" width=\"180\" height=\"55\" fill=\"#fff\" stroke=\"#445\"/><text x=\"85\" y=\"138\">settle</text></g><g id=\"contract\" data-element-id=\"contract\"><rect x=\"330\" y=\"105\" width=\"240\" height=\"55\" fill=\"#fff\" stroke=\"#445\"/><text x=\"345\" y=\"138\">amount stays positive</text></g></svg>",
+  "elements": {
+    "workspace": { "id": "workspace", "kind": "workspace", "label": "Demo workspace", "evidence": { "verdict": "earned", "statuses": [], "reused": false }, "diagnosticIds": [] },
+    "component": { "id": "component", "kind": "component", "label": "Ledger", "parentId": "workspace", "evidence": { "verdict": "gap", "statuses": [], "reused": false }, "diagnosticIds": [], "limitations": ["Refund path is not covered."] },
+    "function": { "id": "function", "kind": "function", "label": "settle", "parentId": "component", "evidence": { "verdict": "earned", "statuses": ["bounded"], "reused": false, "engine": "bounded-check", "cases": 101 }, "diagnosticIds": [], "source": { "file": "src/ledger.rs", "startLine": 41, "startColumn": 4, "endLine": 57, "endColumn": 5 } },
+    "contract": { "id": "contract", "kind": "contract", "label": "amount stays positive", "parentId": "function", "evidence": { "verdict": "violation", "statuses": [], "reused": false }, "diagnosticIds": ["D1"] }
+  },
+  "diagnostics": [
+    { "id": "D1", "code": "E1001", "severity": "error", "message": "A counterexample returned a negative amount.", "elementId": "contract", "source": { "file": "src/ledger.rs", "startLine": 49, "startColumn": 8, "endLine": 49, "endColumn": 22 } }
+  ]
+}

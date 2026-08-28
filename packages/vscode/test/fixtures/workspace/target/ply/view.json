@@ -1,0 +1,5 @@
+{
+  "protocolVersion": 1,
+  "currentRun": "fixture-run",
+  "runs": [{ "id": "fixture-run", "path": "views/fixture-run/visual.json", "completedAt": "2026-08-28T00:00:00Z", "outcome": "clean" }]
+}

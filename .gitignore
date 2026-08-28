@@ -1,0 +1,11 @@
+node_modules/
+packages/*/dist/
+packages/*/test-results/
+packages/*/out/
+packages/*/build/
+packages/*/.gradle/
+packages/*/.gradle-user/
+packages/*/.kotlin/
+packages/*/.intellijPlatform/
+packages/vscode/.vscode-test/
+playwright-report/

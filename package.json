@@ -1,0 +1,19 @@
+{
+  "name": "ply-vis-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build --workspace @ply/vis && npm run build --workspace @ply/vscode",
+    "test": "npm run test --workspace @ply/vis && npm run test --workspace @ply/vscode",
+    "test:e2e": "npm run test:e2e --workspace @ply/vis && npm run test:webview --workspace @ply/vscode",
+    "test:extension": "npm run test:extension --workspace @ply/vscode"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.2",
+    "vite": "7.1.3",
+    "vitest": "3.2.4"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@ply/vscode",
+  "displayName": "Ply Visuals",
+  "description": "Inspect completed Ply visual artifacts without running Ply.",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "engines": { "vscode": "^1.91.0" },
+  "categories": ["Visualization", "Other"],
+  "activationEvents": ["onCommand:ply.openVisual", "onCommand:ply.refreshVisual", "onCommand:ply.selectRoot", "workspaceContains:ply.yaml"],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "viewsContainers": { "activitybar": [{ "id": "plyVisuals", "title": "Ply", "icon": "media/ply.svg" }] },
+    "views": { "plyVisuals": [{ "id": "ply.visualRuns", "name": "Visual runs" }] },
+    "commands": [
+      { "command": "ply.openVisual", "title": "Ply: Open Visual" },
+      { "command": "ply.refreshVisual", "title": "Ply: Refresh Visual", "icon": "$(refresh)" },
+      { "command": "ply.selectRoot", "title": "Ply: Select Workspace Root" }
+    ],
+    "menus": { "view/title": [
+      { "command": "ply.openVisual", "when": "view == ply.visualRuns", "group": "navigation" },
+      { "command": "ply.refreshVisual", "when": "view == ply.visualRuns", "group": "navigation" }
+    ] }
+  },
+  "scripts": {
+    "build": "npm run copy-viewer && tsc -p tsconfig.json",
+    "copy-viewer": "node scripts/copy-viewer-assets.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run src",
+    "test:extension": "npm run build && node ./out/test/extension/run-extension-tests.js",
+    "test:webview": "playwright test test/webview-smoke.spec.ts"
+  },
+  "dependencies": { "@ply/vis": "0.1.0" },
+  "devDependencies": {
+    "@types/node": "22.17.2",
+    "@types/vscode": "1.91.0",
+    "@vscode/test-electron": "2.5.2"
+  }
+}
