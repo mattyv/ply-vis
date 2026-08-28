@@ -7,6 +7,7 @@ test('boots offline with every supplied visual state and accessible controls', a
   await expect(page.locator('[data-state="earned"]')).toHaveCount(2);
   await expect(page.locator('[data-state="gap"]')).toHaveCount(1);
   await expect(page.locator('[data-state="violation"]')).toHaveCount(1);
+  await expect(page.locator('[data-element-id="workspace"] rect')).toHaveCSS('fill', 'rgb(238, 242, 246)');
   await expect(page.locator('[data-state="gap"]')).toHaveCSS('outline-style', 'dashed');
   await expect(page.locator('[data-state="violation"]')).toHaveCSS('outline-style', 'double');
   await expect(page.getByRole('button', { name: 'Zoom in' })).toBeVisible();
