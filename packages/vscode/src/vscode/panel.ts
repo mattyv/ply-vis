@@ -32,7 +32,7 @@ export class PlyPanel implements vscode.Disposable {
       enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [mediaRoot],
     });
     const scriptUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'webview.js')).toString();
-    const styleUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'ply-vis', 'index.css')).toString();
+    const styleUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'ply-vis', 'styles.css')).toString();
     panel.webview.html = webviewHtml({ scriptUri, styleUri, cspSource: panel.webview.cspSource, nonce: createNonce(randomBytes(16)) });
     this.panel = panel;
     this.controller = new PanelController(new VsCodeSurface(panel.webview), this.state, this.navigator,

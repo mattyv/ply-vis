@@ -1,9 +1,13 @@
 {
-  "name": "@ply/vscode",
+  "name": "ply-vis",
+  "publisher": "mattyv",
   "displayName": "Ply Visuals",
   "description": "Inspect completed Ply visual artifacts without running Ply.",
   "version": "0.1.0",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mattyv/ply-vis.git"
+  },
   "type": "commonjs",
   "engines": { "vscode": "^1.91.0" },
   "categories": ["Visualization", "Other"],

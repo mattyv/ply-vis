@@ -9,3 +9,4 @@ packages/*/.kotlin/
 packages/*/.intellijPlatform/
 packages/vscode/.vscode-test/
 playwright-report/
+*.vsix

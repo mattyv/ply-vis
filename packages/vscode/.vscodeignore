@@ -1,0 +1,13 @@
+src/**
+test/**
+out/test/**
+test-results/**
+.gitignore
+**/*.test.*
+**/*.map
+**/*.ts
+**/*.d.ts
+tsconfig.json
+playwright.config.ts
+scripts/**
+*.vsix

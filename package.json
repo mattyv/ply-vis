@@ -4,10 +4,13 @@
   "version": "0.1.0",
   "workspaces": ["packages/*"],
   "scripts": {
-    "build": "npm run build --workspace @ply/vis && npm run build --workspace @ply/vscode",
-    "test": "npm run test --workspace @ply/vis && npm run test --workspace @ply/vscode",
-    "test:e2e": "npm run test:e2e --workspace @ply/vis && npm run test:webview --workspace @ply/vscode",
-    "test:extension": "npm run test:extension --workspace @ply/vscode"
+    "build": "npm run build --workspace @ply/vis && npm run build --workspace ply-vis",
+    "test": "npm run test --workspace @ply/vis && npm run test --workspace ply-vis && npm run test:release",
+    "test:e2e": "npm run test:e2e --workspace @ply/vis && npm run test:webview --workspace ply-vis",
+    "test:extension": "npm run test:extension --workspace ply-vis",
+    "test:release": "node --test scripts/tests/*.test.mjs",
+    "package:local": "node scripts/package-local.mjs",
+    "install:local": "node scripts/install-local.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",
