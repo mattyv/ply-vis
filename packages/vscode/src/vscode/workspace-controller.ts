@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { join } from 'node:path';
 import { discoverPlyRoots, type LoadState, ResultSource, shouldHandleWorkspaceChange, type WorkspaceRoot } from '../core/result-source';
 import type { StateStore } from '../host/state-store';
 import type { NodeFileReader } from './vscode-adapters';
@@ -19,7 +20,7 @@ export class WorkspaceController implements vscode.Disposable {
   public discoveredRoots(): readonly WorkspaceRoot[] { return this.roots; }
 
   public async initialize(): Promise<void> {
-    await this.discover();
+    await this.discover(true);
     const folders = vscode.workspace.workspaceFolders ?? [];
     for (const folder of folders) {
       for (const pattern of WATCH_PATTERNS) {
@@ -33,7 +34,7 @@ export class WorkspaceController implements vscode.Disposable {
   }
 
   public async chooseRoot(): Promise<WorkspaceRoot | undefined> {
-    await this.discover();
+    await this.discover(false);
     if (!this.roots.length) { await vscode.window.showInformationMessage('No Ply specs found in this workspace.'); return undefined; }
     const selected = this.roots.length === 1 ? this.roots[0] : await vscode.window.showQuickPick(this.roots.map((root) => ({ label: root.name, description: root.path, root })),
       { placeHolder: 'Select the Ply workspace root to inspect' }).then((item) => item?.root);
@@ -55,15 +56,16 @@ export class WorkspaceController implements vscode.Disposable {
 
   public dispose(): void { if (this.debounce) clearTimeout(this.debounce); for (const watcher of this.watchers) watcher.dispose(); }
 
-  private async discover(): Promise<void> {
+  private async discover(useRemembered: boolean): Promise<void> {
     const candidates = (vscode.workspace.workspaceFolders ?? []).map((folder) => ({ name: folder.name, path: folder.uri.fsPath }));
-    this.roots = await discoverPlyRoots(candidates, this.files);
+    this.roots = await discoverPlyRoots(candidates, this.files, useRemembered ? this.state.rememberedSpecs() : []);
+    await this.state.rememberSpecs(this.roots.map((root) => join(root.path, 'ply.yaml')));
     const persisted = this.state.selectedRoot();
     this.selected = this.roots.find((root) => root.path === persisted) ?? this.roots[0];
   }
 
   private schedule(): void {
     if (this.debounce) clearTimeout(this.debounce);
-    this.debounce = setTimeout(() => { void this.discover().then(async () => { if (this.selected) await this.refresh(); else this.listener(undefined, {}); }); }, 150);
+    this.debounce = setTimeout(() => { void this.discover(false).then(async () => { if (this.selected) await this.refresh(); else this.listener(undefined, {}); }); }, 150);
   }
 }

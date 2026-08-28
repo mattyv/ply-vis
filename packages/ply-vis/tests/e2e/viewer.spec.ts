@@ -22,14 +22,49 @@ test('zooms, pans, fits, filters overlays, and restores immutable view state', a
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect(stage).toHaveCSS('transform', /matrix\(1\.2/);
   const canvas = page.locator('.ply-canvas');
-  await canvas.evaluate((element) => {
-    element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: 100, clientY: 100 }));
-    element.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 1, clientX: 130, clientY: 140 }));
-    element.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1, clientX: 130, clientY: 140 }));
-  });
+  const node = page.locator('[data-element-id="workspace"] rect');
+  const box = await node.boundingBox();
+  if (!box) throw new Error('Expected the rendered workspace node');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 + 40);
+  await page.mouse.up();
   await expect(stage).toHaveCSS('transform', /matrix\(1\.2, 0, 0, 1\.2, 30, 40\)/);
+  expect(await page.evaluate(() => (window as any).viewer.getState().selectedId)).toBeUndefined();
+
+  // A true drag must not consume the click behavior of a later pointer gesture.
+  // Keep both variants below the pan threshold: a stationary click and a tiny move.
+  await page.waitForTimeout(300);
+  const contract = page.locator('[data-element-id="contract"] rect');
+  const contractBox = await contract.boundingBox();
+  if (!contractBox) throw new Error('Expected the rendered contract node');
+  await page.mouse.move(contractBox.x + contractBox.width / 2, contractBox.y + contractBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(page.getByRole('heading', { name: 'amount stays positive' })).toBeVisible();
+
+  const functionNode = page.locator('[data-element-id="function"] rect');
+  const functionBox = await functionNode.boundingBox();
+  if (!functionBox) throw new Error('Expected the rendered function node');
+  await page.mouse.move(functionBox.x + functionBox.width / 2, functionBox.y + functionBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(functionBox.x + functionBox.width / 2 + 1, functionBox.y + functionBox.height / 2 + 1);
+  await page.mouse.up();
+  await expect(page.getByRole('heading', { name: 'settle' })).toBeVisible();
+
   await page.getByRole('button', { name: 'Fit canvas' }).click();
-  await expect(stage).toHaveCSS('transform', /matrix\(1, 0, 0, 1, 0, 0\)/);
+  const fitted = await page.evaluate(() => {
+    const viewport = document.querySelector('.ply-canvas')!.getBoundingClientRect();
+    const svg = document.querySelector('.ply-stage svg')!.getBoundingClientRect();
+    return {
+      centreDeltaX: Math.abs((svg.left + svg.width / 2) - (viewport.left + viewport.width / 2)),
+      centreDeltaY: Math.abs((svg.top + svg.height / 2) - (viewport.top + viewport.height / 2)),
+      inside: svg.left >= viewport.left && svg.top >= viewport.top && svg.right <= viewport.right && svg.bottom <= viewport.bottom,
+    };
+  });
+  expect(fitted.inside).toBe(true);
+  expect(fitted.centreDeltaX).toBeLessThan(2);
+  expect(fitted.centreDeltaY).toBeLessThan(2);
   await page.getByRole('checkbox', { name: 'Gap', exact: true }).uncheck(); await expect(page.locator('[data-element-id="component"]')).toBeHidden();
   await page.evaluate(() => window.postMessage({ channel: 'ply-vis', version: 1, type: 'restore-state', state: { zoom: 2, panX: 12, panY: 18, overlays: { earned: true, gap: true, violation: true }, selectedId: 'function', focusedId: 'component', runId: 'run-001' } }, '*'));
   await expect(stage).toHaveCSS('transform', /matrix\(2, 0, 0, 2, 12, 18\)/);
@@ -37,7 +72,15 @@ test('zooms, pans, fits, filters overlays, and restores immutable view state', a
 });
 
 test('semantic focus, selection, inspector, and exact source navigation use stable IDs', async ({ page }) => {
+  const inspector = page.locator('.ply-inspector');
+  const toggle = page.getByRole('button', { name: 'Show details' });
+  await expect(inspector).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  expect(await page.evaluate(() => (window as any).viewer.getState().detailsHidden)).toBe(true);
+
   await page.locator('[data-element-id="component"]').dispatchEvent('dblclick');
+  await expect(inspector).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Hide details' })).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByRole('navigation', { name: 'Semantic focus' }).getByText('Ledger')).toBeVisible();
   await page.locator('[data-element-id="function"]').click();
   await expect(page.getByRole('heading', { name: 'settle' })).toBeVisible();
@@ -45,6 +88,17 @@ test('semantic focus, selection, inspector, and exact source navigation use stab
   await page.getByRole('button', { name: /Open src\/ledger.rs/ }).click();
   const navigate = await page.evaluate(() => (window as any).messages.find((message: any) => message.type === 'navigate'));
   expect(navigate.source).toEqual({ file: 'src/ledger.rs', startLine: 41, startColumn: 4, endLine: 57, endColumn: 5 });
+});
+
+test('hides and restores the details pane', async ({ page }) => {
+  await page.locator('[data-element-id="function"]').click();
+  await page.getByRole('button', { name: 'Hide details' }).click();
+  await expect(page.locator('.ply-inspector')).toBeHidden();
+  expect(await page.evaluate(() => (window as any).viewer.getState().detailsHidden)).toBe(true);
+
+  await page.evaluate(() => window.postMessage({ channel: 'ply-vis', version: 1, type: 'restore-state', state: { zoom: 1, panX: 0, panY: 0, overlays: { earned: true, gap: true, violation: true }, detailsHidden: false, runId: 'run-001' } }, '*'));
+  await expect(page.locator('.ply-inspector')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Hide details' })).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('shows an accessible first-party tooltip on node hover and keyboard focus', async ({ page }) => {
@@ -56,7 +110,15 @@ test('shows an accessible first-party tooltip on node hover and keyboard focus',
   await expect(tooltip).toContainText('amount stays positive');
   await expect(tooltip).toContainText('Verdict: violation');
   await expect(tooltip).toContainText('E1001 — error: A counterexample returned a negative amount.');
+  await expect(tooltip).toContainText('Declared contract details');
+  await expect(page.getByRole('tooltip')).toHaveCount(1);
+  await expect(page.locator('.ply-stage title')).toHaveCount(0);
+  expect((await tooltip.textContent())?.match(/Declared contract details/g)).toHaveLength(1);
   await expect(node).toHaveAttribute('aria-describedby', 'ply-vis-tooltip');
+
+  await page.locator('.edge-detail rect').hover();
+  await expect(tooltip).toHaveText('Ledger may call settlement');
+  expect((await tooltip.textContent())?.match(/Ledger may call settlement/g)).toHaveLength(1);
 
   const position = await tooltip.evaluate((element) => {
     const tip = element.getBoundingClientRect();
@@ -109,7 +171,7 @@ test('retains the last good snapshot after malformed, incompatible, and hostile 
       return (window as any).viewer.load(value);
     }, mutate);
     if (mutate === 'hostile') expect(accepted).toBe(true); else expect(accepted).toBe(false);
-    await expect(page.getByRole('heading', { name: 'Details' })).toBeVisible();
+    await expect(page.locator('.ply-inspector h2')).toHaveText('Details');
   }
   await expect(page.locator('script').filter({ hasText: 'pwned' })).toHaveCount(0);
   expect(await page.evaluate(() => (window as any).pwned)).toBeUndefined();
@@ -153,4 +215,33 @@ test('opens 500 components and 5,000 functions within two seconds and focuses re
   const focusElapsed = await page.evaluate(() => { const start = performance.now(); (document.querySelector('[data-element-id="c499"]') as Element).dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); return performance.now() - start; });
   expect(focusElapsed).toBeLessThan(500);
   await expect(page.locator('[data-element-id="c0"]')).toBeHidden();
+});
+
+test('fits semantic focus and removes geometry that crosses its boundary', async ({ page }) => {
+  await page.locator('svg').evaluate((svg) => {
+    svg.insertAdjacentHTML('beforeend', '<g data-test-geometry="internal"><line x1="60" y1="80" x2="260" y2="220" stroke="black"/></g><g data-test-geometry="crossing"><line x1="0" y1="150" x2="200" y2="150" stroke="black"/></g><g data-test-geometry="external"><line x1="500" y1="250" x2="620" y2="250" stroke="black"/></g>');
+  });
+
+  await page.locator('[data-element-id="component"]').dispatchEvent('dblclick');
+  await expect(page.locator('[data-test-geometry="internal"]')).toBeVisible();
+  await expect(page.locator('[data-test-geometry="crossing"]')).toBeHidden();
+  await expect(page.locator('[data-test-geometry="external"]')).toBeHidden();
+
+  const layout = await page.evaluate(() => {
+    const canvas = document.querySelector('.ply-canvas')!.getBoundingClientRect();
+    const focus = document.querySelector('[data-element-id="component"]')!.getBoundingClientRect();
+    return {
+      centreDeltaX: Math.abs((focus.left + focus.width / 2) - (canvas.left + canvas.width / 2)),
+      centreDeltaY: Math.abs((focus.top + focus.height / 2) - (canvas.top + canvas.height / 2)),
+      usedWidth: focus.width / canvas.width,
+      usedHeight: focus.height / canvas.height,
+    };
+  });
+  expect(layout.centreDeltaX).toBeLessThan(2);
+  expect(layout.centreDeltaY).toBeLessThan(2);
+  expect(Math.max(layout.usedWidth, layout.usedHeight)).toBeGreaterThan(0.7);
+
+  await page.getByRole('navigation', { name: 'Semantic focus' }).getByRole('button', { name: 'Workspace', exact: true }).click();
+  await expect(page.locator('[data-test-geometry="crossing"]')).not.toHaveAttribute('hidden', '');
+  await expect(page.locator('[data-test-geometry="external"]')).not.toHaveAttribute('hidden', '');
 });

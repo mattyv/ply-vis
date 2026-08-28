@@ -2,6 +2,7 @@ import { EnvelopeError, parseEnvelope, type VisualElement, type VisualEnvelope }
 import { sanitizeSvg } from '../protocol/sanitize';
 import { HOST_PROTOCOL_VERSION, isHostResponse, type HostBridge } from '../host/messages';
 import { initialViewState, updateViewState, type ViewState } from '../state/view-state';
+import { containsRect, fitRect, type Rect } from './viewport';
 
 export interface Viewer { load(value: unknown): boolean; destroy(): void; getState(): ViewState }
 
@@ -20,13 +21,14 @@ const html = `
       </fieldset>
     </header>
     <nav class="ply-breadcrumbs" aria-label="Semantic focus"></nav>
-    <div class="ply-workspace">
+    <div class="ply-workspace is-inspector-hidden">
       <main class="ply-canvas" tabindex="0" aria-label="Architecture canvas. Use arrow keys to move between items and Enter to inspect." data-empty="true">
         <div class="ply-stage"></div>
         <div class="ply-tooltip" id="ply-vis-tooltip" role="tooltip" hidden></div>
         <p class="ply-empty">Waiting for a visual artifact…</p>
       </main>
-      <aside class="ply-inspector" aria-label="Element details" aria-live="polite"><h2>Details</h2><p>Select an item to inspect its declaration and evidence.</p></aside>
+      <button type="button" class="ply-inspector-toggle" aria-label="Show details" title="Show details" aria-controls="ply-inspector" aria-expanded="false">‹</button>
+      <aside class="ply-inspector" id="ply-inspector" aria-label="Element details" aria-live="polite" hidden><h2>Details</h2><p>Select an item to inspect its declaration and evidence.</p></aside>
     </div>
     <p class="ply-status" role="status" aria-live="polite"></p>
   </section>`;
@@ -38,19 +40,37 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const stage = root.querySelector<HTMLElement>('.ply-stage')!;
   const tooltip = root.querySelector<HTMLElement>('.ply-tooltip')!;
   const inspector = root.querySelector<HTMLElement>('.ply-inspector')!;
+  const inspectorToggle = root.querySelector<HTMLButtonElement>('.ply-inspector-toggle')!;
+  const workspace = root.querySelector<HTMLElement>('.ply-workspace')!;
   const status = root.querySelector<HTMLElement>('.ply-status')!;
   const runs = root.querySelector<HTMLSelectElement>('[data-role="runs"]')!;
   const breadcrumbs = root.querySelector<HTMLElement>('.ply-breadcrumbs')!;
   const snapshots = new Map<string, VisualEnvelope>();
   let state = initialViewState();
   let active: VisualEnvelope | undefined;
-  let drag: { x: number; y: number; panX: number; panY: number } | undefined;
+  let drag: { x: number; y: number; panX: number; panY: number; pointerId: number; moved: boolean } | undefined;
+  let suppressClickUntil = 0;
   let tooltipTarget: SVGElement | undefined;
 
   const postState = () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'persist-state', state });
   const setState = (patch: Partial<ViewState>, persist = true) => { state = updateViewState(state, patch); if (persist) postState(); };
   const transform = () => { stage.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`; };
   const visibleElements = () => active ? Object.values(active.elements).filter((element) => !state.focusedId || element.id === state.focusedId || isDescendant(element, state.focusedId!, active!.elements)) : [];
+
+  function renderDetailsVisibility() {
+    inspector.hidden = state.detailsHidden;
+    workspace.classList.toggle('is-inspector-hidden', state.detailsHidden);
+    const label = state.detailsHidden ? 'Show details' : 'Hide details';
+    inspectorToggle.setAttribute('aria-label', label);
+    inspectorToggle.title = label;
+    inspectorToggle.setAttribute('aria-expanded', String(!state.detailsHidden));
+    inspectorToggle.textContent = state.detailsHidden ? '‹' : '›';
+  }
+
+  function setDetailsHidden(detailsHidden: boolean, persist = true) {
+    setState({ detailsHidden }, persist);
+    renderDetailsVisibility();
+  }
 
   function isDescendant(element: VisualElement, ancestorId: string, elements: VisualEnvelope['elements']): boolean {
     let parent = element.parentId;
@@ -91,7 +111,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   }
 
   function tooltipNode(target: EventTarget | null): SVGElement | undefined {
-    return target instanceof Element ? target.closest<SVGElement>('[data-element-id], [data-ply-id]') ?? undefined : undefined;
+    return target instanceof Element ? target.closest<SVGElement>('[data-element-id], [data-ply-id], [data-ply-title]') ?? undefined : undefined;
   }
 
   function elementForNode(node: SVGElement): VisualElement | undefined {
@@ -133,7 +153,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       if (diagnostic) lines.push(`${diagnostic.code} — ${diagnostic.severity}: ${diagnostic.message}`);
     }
     if (element.source) lines.push(`Source: ${element.source.file}:${element.source.startLine + 1}:${element.source.startColumn + 1}`);
-    const embedded = node.querySelector('title')?.textContent?.trim();
+    const embedded = node.dataset.plyTitle?.trim();
     if (embedded && embedded !== element.label && !lines.includes(embedded)) lines.push(embedded);
     return lines;
   }
@@ -155,12 +175,19 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
 
   function showTooltip(node: SVGElement, clientX?: number, clientY?: number) {
     const element = elementForNode(node);
-    if (!element || node.hasAttribute('hidden')) { hideTooltip(); return; }
+    const embedded = node.dataset.plyTitle?.trim();
+    if ((!element && !embedded) || node.hasAttribute('hidden')) { hideTooltip(); return; }
     if (tooltipTarget && tooltipTarget !== node) removeTooltipDescription(tooltipTarget);
     tooltipTarget = node;
-    const heading = document.createElement('strong'); heading.textContent = element.label;
-    const details = document.createElement('span'); details.textContent = tooltipLines(element, node).join('\n');
-    tooltip.replaceChildren(heading, details);
+    const details = document.createElement('span');
+    if (element) {
+      const heading = document.createElement('strong'); heading.textContent = element.label;
+      details.textContent = tooltipLines(element, node).join('\n');
+      tooltip.replaceChildren(heading, details);
+    } else {
+      details.textContent = embedded!;
+      tooltip.replaceChildren(details);
+    }
     tooltip.hidden = false;
     describeWithTooltip(node);
     const nodeRect = node.getBoundingClientRect();
@@ -187,14 +214,57 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const visibleNodes = nodes.filter((node) => !node.hasAttribute('hidden') && elementForNode(node));
     const rovingTarget = visibleNodes.find((node) => elementForNode(node)?.id === state.selectedId) ?? visibleNodes[0];
     for (const node of nodes) node.setAttribute('tabindex', node === rovingTarget ? '0' : '-1');
+    applyFocusGeometry();
     renderBreadcrumbs();
+  }
+
+  function applyFocusGeometry() {
+    const svg = stage.querySelector<SVGSVGElement>('svg');
+    if (!svg) return;
+    for (const child of [...svg.querySelectorAll<SVGElement>('[data-ply-focus-hidden]')]) {
+      child.removeAttribute('hidden');
+      child.removeAttribute('data-ply-focus-hidden');
+    }
+    if (!state.focusedId) return;
+    const focusNode = [...stage.querySelectorAll<SVGGraphicsElement>('[data-element-id], [data-ply-id]')]
+      .find((candidate) => elementForNode(candidate)?.id === state.focusedId);
+    if (!focusNode || typeof focusNode.getBBox !== 'function') return;
+    const focusBounds = focusNode.getBBox();
+    const bounds: Rect = { x: focusBounds.x, y: focusBounds.y, width: focusBounds.width, height: focusBounds.height };
+    for (const child of [...svg.children]) {
+      if (!(child instanceof SVGElement) || child.matches('[data-element-id], [data-ply-id], defs, style, title')) continue;
+      const graphics = child as SVGGraphicsElement;
+      if (typeof graphics.getBBox !== 'function') continue;
+      let childBounds: DOMRect;
+      try { childBounds = graphics.getBBox(); } catch { continue; }
+      if (!containsRect(bounds, childBounds)) {
+        child.setAttribute('hidden', '');
+        child.setAttribute('data-ply-focus-hidden', '');
+      }
+    }
   }
 
   function show(envelope: VisualEnvelope) {
     active = envelope; runs.value = envelope.run.id;
     if (state.runId !== envelope.run.id) setState({ runId: envelope.run.id, selectedId: undefined, focusedId: undefined }, false);
+    renderDetailsVisibility();
     hideTooltip();
     stage.innerHTML = envelope.svg;
+    for (const title of [...stage.querySelectorAll('title')]) {
+      const parent = title.parentElement;
+      const target = parent?.closest<SVGElement>('[data-element-id], [data-ply-id]')
+        ?? (parent instanceof SVGElement ? parent : undefined);
+      const text = title.textContent?.trim();
+      if (target && text) {
+        target.dataset.plyTitle = text;
+        if (!elementForNode(target)) {
+          target.setAttribute('tabindex', '0');
+          target.setAttribute('role', 'img');
+          target.setAttribute('aria-label', text);
+        }
+      }
+      title.remove();
+    }
     canvas.dataset.empty = 'false';
     const empty = canvas.querySelector('.ply-empty'); if (empty) empty.remove();
     applyVisibility(); transform(); renderInspector(state.selectedId ? envelope.elements[state.selectedId] : undefined);
@@ -219,22 +289,45 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     }
   }
 
-  function select(id: string) { if (!active?.elements[id]) return; setState({ selectedId: id }); applyVisibility(); renderInspector(active.elements[id]); }
+  function select(id: string) { if (!active?.elements[id]) return; setState({ selectedId: id, detailsHidden: false }); renderDetailsVisibility(); applyVisibility(); renderInspector(active.elements[id]); }
   function focusNode(id: string) {
     const node = [...stage.querySelectorAll<SVGElement>('[data-element-id], [data-ply-id]')].find((candidate) => elementForNode(candidate)?.id === id);
     node?.focus();
   }
-  function focus(id?: string) { if (id && !active?.elements[id]) return; setState({ focusedId: id, selectedId: id }); applyVisibility(); renderInspector(id ? active?.elements[id] : undefined); }
+  function focus(id?: string) { if (id && !active?.elements[id]) return; setState({ focusedId: id, selectedId: id, ...(id ? { detailsHidden: false } : {}) }); renderDetailsVisibility(); applyVisibility(); renderInspector(id ? active?.elements[id] : undefined); fit(); }
   function setZoom(zoom: number) { setState({ zoom: Math.min(4, Math.max(0.2, zoom)) }); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`; }
-  function fit() { setState({ zoom: 1, panX: 0, panY: 0 }); transform(); status.textContent = 'Canvas fitted'; }
+  function fit() {
+    const svg = stage.querySelector<SVGSVGElement>('svg');
+    if (!svg) return;
+    const stageRect = stage.getBoundingClientRect();
+    const target = state.focusedId
+      ? [...stage.querySelectorAll<SVGGraphicsElement>('[data-element-id], [data-ply-id]')].find((candidate) => elementForNode(candidate)?.id === state.focusedId)
+      : svg;
+    if (!target) return;
+    const targetRect = target.getBoundingClientRect();
+    const currentZoom = state.zoom || 1;
+    const content = {
+      x: (targetRect.left - stageRect.left) / currentZoom,
+      y: (targetRect.top - stageRect.top) / currentZoom,
+      width: targetRect.width / currentZoom,
+      height: targetRect.height / currentZoom,
+    };
+    setState(fitRect({ width: canvas.clientWidth, height: canvas.clientHeight }, content));
+    transform();
+    status.textContent = state.focusedId ? 'Focused element fitted' : 'Canvas fitted';
+  }
 
   root.querySelector('[aria-label="Zoom in"]')!.addEventListener('click', () => setZoom(state.zoom * 1.2));
   root.querySelector('[aria-label="Zoom out"]')!.addEventListener('click', () => setZoom(state.zoom / 1.2));
   root.querySelector('[aria-label="Fit canvas"]')!.addEventListener('click', fit);
+  inspectorToggle.addEventListener('click', () => setDetailsHidden(!state.detailsHidden));
   runs.addEventListener('change', () => { const envelope = snapshots.get(runs.value); if (envelope) { show(envelope); postState(); } });
   root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => input.addEventListener('change', () => { const key = input.dataset.overlay as 'earned' | 'gap' | 'violation'; setState({ overlays: { ...state.overlays, [key]: input.checked } }); applyVisibility(); }));
   breadcrumbs.addEventListener('click', (event) => { const target = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-focus-id]'); if (target) focus(target.dataset.focusId || undefined); });
-  stage.addEventListener('click', (event) => { const node = (event.target as Element).closest<SVGElement>('[data-element-id], [data-ply-id]'); const id = node?.dataset.elementId ?? node?.dataset.plyId; if (id) select(id); });
+  stage.addEventListener('click', (event) => {
+    if (performance.now() < suppressClickUntil) return;
+    const node = (event.target as Element).closest<SVGElement>('[data-element-id], [data-ply-id]'); const id = node?.dataset.elementId ?? node?.dataset.plyId; if (id) select(id);
+  });
   stage.addEventListener('dblclick', (event) => { const node = (event.target as Element).closest<SVGElement>('[data-element-id], [data-ply-id]'); const id = node?.dataset.elementId ?? node?.dataset.plyId; if (id) focus(id); });
   stage.addEventListener('pointerover', (event) => { const node = tooltipNode(event.target); if (node) showTooltip(node, event.clientX, event.clientY); });
   stage.addEventListener('pointermove', (event) => { const node = tooltipNode(event.target); if (node && node === tooltipTarget && !tooltip.hidden) positionTooltip(event.clientX, event.clientY); });
@@ -250,9 +343,33 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     if (!node.matches(':hover')) hideTooltip();
   });
   canvas.addEventListener('wheel', (event) => { event.preventDefault(); setZoom(state.zoom * (event.deltaY < 0 ? 1.1 : 0.9)); }, { passive: false });
-  canvas.addEventListener('pointerdown', (event) => { if ((event.target as Element).closest('[data-element-id], [data-ply-id]')) return; drag = { x: event.clientX, y: event.clientY, panX: state.panX, panY: state.panY }; try { canvas.setPointerCapture(event.pointerId); } catch { /* Synthetic and assistive input can pan without capture. */ } });
-  canvas.addEventListener('pointermove', (event) => { if (!drag) return; setState({ panX: drag.panX + event.clientX - drag.x, panY: drag.panY + event.clientY - drag.y }, false); transform(); });
-  canvas.addEventListener('pointerup', () => { if (drag) { drag = undefined; postState(); } });
+  canvas.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    drag = { x: event.clientX, y: event.clientY, panX: state.panX, panY: state.panY, pointerId: event.pointerId, moved: false };
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!drag) return;
+    const deltaX = event.clientX - drag.x;
+    const deltaY = event.clientY - drag.y;
+    if (!drag.moved && Math.hypot(deltaX, deltaY) < 3) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      canvas.classList.add('is-panning');
+      try { canvas.setPointerCapture(drag.pointerId); } catch { /* Assistive input can pan without capture. */ }
+    }
+    event.preventDefault();
+    setState({ panX: drag.panX + deltaX, panY: drag.panY + deltaY }, false);
+    transform();
+  });
+  const finishDrag = () => {
+    if (!drag) return;
+    if (drag.moved) { suppressClickUntil = performance.now() + 250; postState(); }
+    drag = undefined;
+    canvas.classList.remove('is-panning');
+  };
+  canvas.addEventListener('pointerup', finishDrag);
+  canvas.addEventListener('pointercancel', finishDrag);
+  canvas.addEventListener('lostpointercapture', finishDrag);
   canvas.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !tooltip.hidden) { event.preventDefault(); hideTooltip(); return; }
     const elements = visibleElements(); if (!elements.length) return;
@@ -271,7 +388,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => { input.checked = state.overlays[input.dataset.overlay as keyof ViewState['overlays']]; });
       const restoredRun = state.runId ? snapshots.get(state.runId) : undefined;
       if (restoredRun && restoredRun !== active) show(restoredRun);
-      else if (active) { applyVisibility(); transform(); renderInspector(state.selectedId ? active.elements[state.selectedId] : undefined); }
+      else if (active) { renderDetailsVisibility(); applyVisibility(); transform(); renderInspector(state.selectedId ? active.elements[state.selectedId] : undefined); }
     }
   };
   const reportRuntimeError = (message: string) => {
@@ -283,6 +400,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   window.addEventListener('message', receive);
   window.addEventListener('error', receiveError);
   window.addEventListener('unhandledrejection', receiveRejection);
+  renderDetailsVisibility();
   for (const envelope of initialEnvelopes) load(envelope);
   bridge.post({ channel: 'ply-vis', version: 1, type: 'ready' });
   if (!initialEnvelopes.length) bridge.post({ channel: 'ply-vis', version: 1, type: 'request-artifact' });

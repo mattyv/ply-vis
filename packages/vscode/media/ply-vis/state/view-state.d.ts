@@ -2,6 +2,7 @@ export interface ViewState {
     readonly runId?: string | undefined;
     readonly selectedId?: string | undefined;
     readonly focusedId?: string | undefined;
+    readonly detailsHidden: boolean;
     readonly zoom: number;
     readonly panX: number;
     readonly panY: number;

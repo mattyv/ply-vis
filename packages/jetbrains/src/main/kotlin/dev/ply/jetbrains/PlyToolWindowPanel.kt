@@ -30,6 +30,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
     private val projectState = project.service<PlyProjectService>()
     private val viewState = projectState.viewState
     private val artifacts = projectState.artifacts
+    private val discoveryState = projectState.discoveryState
     private val roots = JComboBox<Path>()
     private val status = JBLabel(PlyFirstUseState.message(hasSpecs = false))
     private val browser: JBCefBrowser?
@@ -47,7 +48,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         controls.add(status)
         add(controls, BorderLayout.NORTH)
 
-        refresh.addActionListener { refreshRootsAndLoad() }
+        refresh.addActionListener { refreshRootsAndLoad(useRemembered = false) }
         roots.addActionListener { if (!suppressRootEvents) loadSelectedRoot() }
         installWorkspaceWatcher()
 
@@ -59,7 +60,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
             loadViewer(browser)
             add(browser.component, BorderLayout.CENTER)
         }
-        refreshRootsAndLoad()
+        refreshRootsAndLoad(useRemembered = true)
         poller.start()
     }
 
@@ -71,7 +72,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                     runCatching { PlyWatchPaths.isRelevant(Path.of(event.path), projectRoots) }.getOrDefault(false)
                 }
                 if (relevant) ApplicationManager.getApplication().invokeLater {
-                    if (!project.isDisposed) refreshRootsAndLoad()
+                    if (!project.isDisposed) refreshRootsAndLoad(useRemembered = false)
                 }
             }
         })
@@ -115,9 +116,11 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         }
     }
 
-    private fun refreshRootsAndLoad() {
+    private fun refreshRootsAndLoad(useRemembered: Boolean) {
         val selected = roots.selectedItem as? Path
-        val discovered = PlyArtifactDiscovery.findRoots(project)
+        val projectRoots = PlyArtifactDiscovery.projectRoots(project)
+        val discovered = PlyArtifactDiscovery.findRoots(projectRoots, if (useRemembered) discoveryState.read() else emptyList())
+        discoveryState.write(discovered.map { it.resolve("ply.yaml") })
         suppressRootEvents = true
         try {
             roots.removeAllItems()

@@ -13,4 +13,11 @@ describe('workspace and viewer state', () => {
     expect(new StateStore(backing).selectedRoot()).toBe('/work/b');
     expect(new StateStore(backing).viewState()).toEqual({ selectedId: 'fn', zoom: 2 });
   });
+  it('keeps exactly one generation of discovered spec paths', async () => {
+    const backing = new MemoryState(); const state = new StateStore(backing);
+    await state.rememberSpecs(['/work/a/ply.yaml', '/work/b/ply.yaml']);
+    expect(state.rememberedSpecs()).toEqual(['/work/a/ply.yaml', '/work/b/ply.yaml']);
+    await state.rememberSpecs(['/work/c/ply.yaml']);
+    expect(state.rememberedSpecs()).toEqual(['/work/c/ply.yaml']);
+  });
 });

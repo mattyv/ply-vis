@@ -39,4 +39,27 @@ class PlyArtifactDiscoveryTest {
             PlyArtifactDiscovery.findRoots(listOf(project)),
         )
     }
+
+    @Test
+    fun `uses valid cached specs and falls back when one is stale`() {
+        val project = Files.createTempDirectory("ply-cached-discovery-")
+        val current = project.resolve("services/current/ply.yaml").also {
+            Files.createDirectories(it.parent)
+            Files.writeString(it, "")
+        }
+        assertEquals(
+            listOf(current.parent.toAbsolutePath().normalize()),
+            PlyArtifactDiscovery.findRoots(listOf(project), listOf(current)),
+        )
+
+        val replacement = project.resolve("services/replacement/ply.yaml").also {
+            Files.createDirectories(it.parent)
+            Files.writeString(it, "")
+        }
+        Files.delete(current)
+        assertEquals(
+            listOf(replacement.parent.toAbsolutePath().normalize()),
+            PlyArtifactDiscovery.findRoots(listOf(project), listOf(current)),
+        )
+    }
 }

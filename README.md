@@ -23,7 +23,9 @@ Visual runs are snapshots of verification evidence, not graphical diffs. Ply Vis
 Ply Visual searches every open workspace or project recursively for `ply.yaml`.
 It skips generated and dependency directories such as `.git`, `target`,
 `node_modules`, `build`, and Gradle caches, so monorepo packages work without
-moving their specs to the workspace root.
+moving their specs to the workspace root. It remembers the previous search's
+spec paths and checks them first at startup. If any remembered path is stale, it
+falls back to a full search and replaces the cache.
 
 The sidebar and tool window distinguish the two common first-use states:
 
@@ -38,6 +40,11 @@ Ply runs.
 
 In VS Code, click a completed run to reuse the current Ply Visual tab. Right-click
 the run and choose **Open in New Tab** to keep multiple visuals open.
+
+Drag anywhere on the canvas to pan, or double-click an item to focus and fit it.
+Ply Visual hides unrelated geometry while focused. Hover diagram items for Ply's
+tooltips. The Details pane starts closed; select an item to open it, or use the
+edge control to show or hide it.
 
 ## Install locally
 

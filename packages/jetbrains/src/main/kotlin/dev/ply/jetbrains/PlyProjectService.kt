@@ -7,4 +7,5 @@ import com.intellij.openapi.project.Project
 class PlyProjectService(project: Project) {
     val artifacts = PlyArtifactState()
     val viewState = PlyViewStateStore.forProject(project)
+    val discoveryState = PlyDiscoveryStateStore.forProject(project)
 }

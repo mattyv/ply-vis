@@ -8,10 +8,12 @@ const envelope = (id = 'run-1'): VisualEnvelope => ({
 const index = { protocolVersion: 1, currentRun: 'run-1', runs: [{ id: 'run-1', path: 'views/run-1/visual.json', completedAt: '2026-08-28T00:00:00Z', outcome: 'clean' }] };
 
 class MemoryFiles implements FileReader {
+  public readonly calls: string[] = [];
   public constructor(public readonly values: Record<string, string>) {}
   public async readText(path: string): Promise<string> { const value = this.values[path]; if (value === undefined) throw new Error(`missing ${path}`); return value; }
-  public async exists(path: string): Promise<boolean> { return path in this.values; }
+  public async exists(path: string): Promise<boolean> { this.calls.push(`exists:${path}`); return path in this.values; }
   public async findPlySpecs(root: string): Promise<string[]> {
+    this.calls.push(`find:${root}`);
     return Object.keys(this.values).filter((path) => path.startsWith(`${root}/`) && path.endsWith('/ply.yaml'));
   }
 }
@@ -43,6 +45,21 @@ describe('Ply result discovery', () => {
     const files = new MemoryFiles({ '/repo/ply.yaml': '', '/repo-other/ply.yaml': '' });
     files.findPlySpecs = async () => ['/repo/ply.yaml', '/repo-other/ply.yaml'];
     await expect(discoverPlyRoots([{ name: 'repo', path: '/repo' }], files)).resolves.toEqual([{ name: 'repo', path: '/repo' }]);
+  });
+  it('uses a valid one-generation spec cache before recursive discovery', async () => {
+    const files = new MemoryFiles({ '/repo/crates/a/ply.yaml': '' });
+    await expect(discoverPlyRoots([{ name: 'repo', path: '/repo' }], files, ['/repo/crates/a/ply.yaml'])).resolves.toEqual([
+      { name: 'repo: crates/a', path: '/repo/crates/a' },
+    ]);
+    expect(files.calls).toEqual(['exists:/repo/crates/a/ply.yaml']);
+  });
+  it('falls back to recursive discovery when any cached spec is stale', async () => {
+    const files = new MemoryFiles({ '/repo/services/b/ply.yaml': '' });
+    await expect(discoverPlyRoots(
+      [{ name: 'repo', path: '/repo' }], files,
+      ['/repo/removed/ply.yaml', '/repo/services/b/ply.yaml'],
+    )).resolves.toEqual([{ name: 'repo: services/b', path: '/repo/services/b' }]);
+    expect(files.calls).toEqual(['exists:/repo/removed/ply.yaml', 'exists:/repo/services/b/ply.yaml', 'find:/repo']);
   });
   it('matches recursive spec and artifact changes without watching excluded trees or paths outside the workspace', () => {
     expect(shouldHandleWorkspaceChange('/repo', '/repo/crates/a/ply.yaml')).toBe(true);

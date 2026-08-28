@@ -104,24 +104,46 @@ export function parseVisualEnvelope(value: unknown): VisualEnvelope {
   return value as unknown as VisualEnvelope;
 }
 
-export async function discoverPlyRoots(roots: readonly WorkspaceRoot[], files: FileReader): Promise<WorkspaceRoot[]> {
+function rootForSpec(workspaces: readonly WorkspaceRoot[], spec: string): WorkspaceRoot | undefined {
+  const absolute = resolve(spec);
+  if (basename(absolute) !== 'ply.yaml') return undefined;
+  for (const workspace of workspaces) {
+    const boundary = resolve(workspace.path);
+    const fromBoundary = relative(boundary, absolute);
+    if (fromBoundary === '..' || fromBoundary.startsWith(`..${sep}`) || isAbsolute(fromBoundary)) continue;
+    const parts = fromBoundary.split(sep);
+    if (parts.some((part) => DISCOVERY_EXCLUDED_DIRECTORIES.has(part))) return undefined;
+    const path = dirname(absolute);
+    const nested = relative(boundary, path);
+    return { name: nested ? `${workspace.name}: ${nested}` : workspace.name, path };
+  }
+  return undefined;
+}
+
+function uniqueRoots(roots: readonly WorkspaceRoot[]): WorkspaceRoot[] {
+  const unique = new Map<string, WorkspaceRoot>();
+  for (const root of roots) unique.set(root.path, root);
+  return [...unique.values()].sort((left, right) => left.path.localeCompare(right.path));
+}
+
+export async function discoverPlyRoots(roots: readonly WorkspaceRoot[], files: FileReader,
+  rememberedSpecs: readonly string[] = []): Promise<WorkspaceRoot[]> {
+  if (rememberedSpecs.length > 0) {
+    const cached = await Promise.all(rememberedSpecs.map(async (spec) => {
+      const root = rootForSpec(roots, spec);
+      return root && await files.exists(resolve(spec)) ? root : undefined;
+    }));
+    if (cached.every((root): root is WorkspaceRoot => root !== undefined)) return uniqueRoots(cached);
+  }
   const discovered = await Promise.all(roots.map(async (workspace) => {
     const boundary = resolve(workspace.path);
     const specs = await files.findPlySpecs(boundary);
     return specs.flatMap((spec): WorkspaceRoot[] => {
-      const absolute = resolve(spec);
-      const fromBoundary = relative(boundary, absolute);
-      if (basename(absolute) !== 'ply.yaml' || fromBoundary === '..' || fromBoundary.startsWith(`..${sep}`) || isAbsolute(fromBoundary)) return [];
-      const parts = fromBoundary.split(sep);
-      if (parts.some((part) => DISCOVERY_EXCLUDED_DIRECTORIES.has(part))) return [];
-      const path = dirname(absolute);
-      const nested = relative(boundary, path);
-      return [{ name: nested ? `${workspace.name}: ${nested}` : workspace.name, path }];
+      const root = rootForSpec([workspace], spec);
+      return root ? [root] : [];
     });
   }));
-  const unique = new Map<string, WorkspaceRoot>();
-  for (const root of discovered.flat()) unique.set(root.path, root);
-  return [...unique.values()].sort((left, right) => left.path.localeCompare(right.path));
+  return uniqueRoots(discovered.flat());
 }
 
 export function shouldHandleWorkspaceChange(workspacePath: string, changedPath: string): boolean {

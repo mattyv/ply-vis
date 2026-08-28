@@ -23,9 +23,14 @@ object PlyArtifactDiscovery {
         return normalizeRoots(contentRoots + listOfNotNull(project.basePath?.let(Path::of)))
     }
 
-    fun findRoots(projectRoots: Iterable<Path>): List<Path> {
+    fun findRoots(projectRoots: Iterable<Path>, rememberedSpecs: Iterable<Path> = emptyList()): List<Path> {
+        val boundaries = normalizeRoots(projectRoots)
+        val remembered = rememberedSpecs.map { it.toAbsolutePath().normalize() }
+        if (remembered.isNotEmpty() && remembered.all { spec -> validSpec(spec, boundaries) && Files.isRegularFile(spec) }) {
+            return normalizeRoots(remembered.map(Path::getParent))
+        }
         val candidates = mutableListOf<Path>()
-        normalizeRoots(projectRoots).forEach { boundary ->
+        boundaries.forEach { boundary ->
             if (!Files.isDirectory(boundary)) return@forEach
             Files.walkFileTree(boundary, object : SimpleFileVisitor<Path>() {
                 override fun preVisitDirectory(directory: Path, attributes: BasicFileAttributes): FileVisitResult {
@@ -45,6 +50,12 @@ object PlyArtifactDiscovery {
             })
         }
         return normalizeRoots(candidates)
+    }
+
+    private fun validSpec(spec: Path, boundaries: List<Path>): Boolean {
+        if (spec.fileName?.toString() != "ply.yaml") return false
+        val boundary = boundaries.firstOrNull(spec::startsWith) ?: return false
+        return boundary.relativize(spec).none { it.toString() in excludedDirectories }
     }
 
     fun normalizeRoots(candidates: Iterable<Path>): List<Path> = candidates
