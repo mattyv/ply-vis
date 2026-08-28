@@ -36,6 +36,9 @@ The sidebar and tool window distinguish the two common first-use states:
 The IDE extensions only observe completed artifacts. They never start or manage
 Ply runs.
 
+In VS Code, click a completed run to reuse the current Ply Visual tab. Right-click
+the run and choose **Open in New Tab** to keep multiple visuals open.
+
 ## Install locally
 
 Build, package, and install the VS Code extension from this repository:

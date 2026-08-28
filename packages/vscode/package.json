@@ -11,20 +11,26 @@
   "type": "commonjs",
   "engines": { "vscode": "^1.91.0" },
   "categories": ["Visualization", "Other"],
-  "activationEvents": ["onCommand:ply.openVisual", "onCommand:ply.refreshVisual", "onCommand:ply.selectRoot", "workspaceContains:**/ply.yaml"],
+  "activationEvents": ["onCommand:ply.openVisual", "onCommand:ply.openVisualInNewTab", "onCommand:ply.refreshVisual", "onCommand:ply.selectRoot", "workspaceContains:**/ply.yaml"],
   "main": "./out/src/extension.js",
   "contributes": {
     "viewsContainers": { "activitybar": [{ "id": "plyVisuals", "title": "Ply", "icon": "media/ply.svg" }] },
     "views": { "plyVisuals": [{ "id": "ply.visualRuns", "name": "Visual runs" }] },
     "commands": [
       { "command": "ply.openVisual", "title": "Ply: Open Visual" },
+      { "command": "ply.openVisualInNewTab", "title": "Open in New Tab" },
       { "command": "ply.refreshVisual", "title": "Ply: Refresh Visual", "icon": "$(refresh)" },
       { "command": "ply.selectRoot", "title": "Ply: Select Workspace Root" }
     ],
-    "menus": { "view/title": [
-      { "command": "ply.openVisual", "when": "view == ply.visualRuns", "group": "navigation" },
-      { "command": "ply.refreshVisual", "when": "view == ply.visualRuns", "group": "navigation" }
-    ] }
+    "menus": {
+      "view/title": [
+        { "command": "ply.openVisual", "when": "view == ply.visualRuns", "group": "navigation" },
+        { "command": "ply.refreshVisual", "when": "view == ply.visualRuns", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "ply.openVisualInNewTab", "when": "view == ply.visualRuns && viewItem == ply.visualRun", "group": "navigation" }
+      ]
+    }
   },
   "scripts": {
     "build": "npm run copy-viewer && tsc -p tsconfig.json",

@@ -15,7 +15,12 @@ class VsCodeSurface implements PanelSurface {
 export class PlyPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private controller: PanelController | undefined;
-  public constructor(private readonly extensionUri: vscode.Uri, private readonly state: StateStore, private readonly navigator: SourceNavigator) {}
+  public constructor(
+    private readonly extensionUri: vscode.Uri,
+    private readonly state: StateStore,
+    private readonly navigator: SourceNavigator,
+    private readonly title = 'Ply Visual',
+  ) {}
 
   public show(root: WorkspaceRoot, loadState: LoadState): void {
     if (!this.panel) this.create();
@@ -28,7 +33,7 @@ export class PlyPanel implements vscode.Disposable {
 
   private create(): void {
     const mediaRoot = vscode.Uri.joinPath(this.extensionUri, 'media');
-    const panel = vscode.window.createWebviewPanel('ply.visual', 'Ply Visual', vscode.ViewColumn.Active, {
+    const panel = vscode.window.createWebviewPanel('ply.visual', this.title, vscode.ViewColumn.Active, {
       enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [mediaRoot],
     });
     const scriptUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'webview.js')).toString();

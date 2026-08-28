@@ -16,7 +16,12 @@ class RunsView implements vscode.TreeDataProvider<vscode.TreeItem> {
     const items: vscode.TreeItem[] = root ? [new vscode.TreeItem(root.name, vscode.TreeItemCollapsibleState.None)] : [];
     if (!root) items.push(new vscode.TreeItem(firstUseMessage(false)));
     else if (!state.snapshot && !state.error) items.push(new vscode.TreeItem(firstUseMessage(true)));
-    if (state.snapshot) items.push(new vscode.TreeItem(`${state.snapshot.envelope.run.id} · ${state.snapshot.entry.outcome}`));
+    if (state.snapshot) {
+      const run = new vscode.TreeItem(`${state.snapshot.envelope.run.id} · ${state.snapshot.entry.outcome}`);
+      run.contextValue = 'ply.visualRun';
+      run.command = { command: 'ply.openVisual', title: 'Open Visual' };
+      items.push(run);
+    }
     if (state.error) { const error = new vscode.TreeItem(`Error: ${state.error}`); error.tooltip = state.snapshot ? 'Showing the last complete run.' : state.error; items.push(error); }
     this.items = items; this.changed.fire();
   }
@@ -35,11 +40,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(panel, workspace, vscode.window.registerTreeDataProvider('ply.visualRuns', runsView));
   context.subscriptions.push(vscode.commands.registerCommand('ply.refreshVisual', () => workspace.refresh()));
   context.subscriptions.push(vscode.commands.registerCommand('ply.selectRoot', () => workspace.chooseRoot()));
-  context.subscriptions.push(vscode.commands.registerCommand('ply.openVisual', async () => {
+  const visual = async (): Promise<{ root: WorkspaceRoot; loaded: LoadState } | undefined> => {
     const root = workspace.currentRoot() ?? await workspace.chooseRoot();
-    if (!root) return;
+    if (!root) return undefined;
     const loaded = await workspace.refresh() ?? results.state(root);
+    return { root, loaded };
+  };
+  context.subscriptions.push(vscode.commands.registerCommand('ply.openVisual', async () => {
+    const selected = await visual();
+    if (!selected) return;
+    const { root, loaded } = selected;
     panel.show(root, loaded);
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand('ply.openVisualInNewTab', async () => {
+    const selected = await visual();
+    if (!selected) return;
+    const { root, loaded } = selected;
+    const tab = new PlyPanel(context.extensionUri, state, navigator, `Ply Visual — ${root.name}`);
+    context.subscriptions.push(tab);
+    tab.show(root, loaded);
   }));
   if (process.env.PLY_VSCODE_TEST === '1') {
     context.subscriptions.push(vscode.commands.registerCommand('ply.__testNavigate', async (message: unknown) => {
