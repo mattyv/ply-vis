@@ -13,6 +13,10 @@ test('VS Code manifest has a stable installable identity', () => {
   assert.equal(manifest.contributes.viewsContainers.activitybar[0].id, 'plyVisuals');
 });
 
+test('VS Code activates without recursively searching for ply.yaml', () => {
+  assert.ok(!manifest.activationEvents.some((event) => event.startsWith('workspaceContains:')));
+});
+
 test('completed visual runs offer an Open in New Tab context action', () => {
   assert.ok(manifest.contributes.commands.some(({ command, title }) => command === 'ply.openVisualInNewTab' && title === 'Open in New Tab'));
   assert.ok(manifest.contributes.menus['view/item/context'].some(({ command, when }) => command === 'ply.openVisualInNewTab' && when.includes('viewItem == ply.visualRun')));
