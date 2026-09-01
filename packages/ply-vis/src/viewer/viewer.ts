@@ -332,7 +332,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const empty = canvas.querySelector('.ply-empty'); if (empty) empty.remove();
     applyVisibility(); transform(); renderInspector(state.selectedId ? envelope.elements[state.selectedId] : undefined);
     status.textContent = envelope.run.tool.version === 'render' ? 'Rendered Ply spec' : `Showing run ${envelope.run.id}`;
-    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(fit);
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(() => fit(false));
   }
 
   function load(value: unknown): boolean {
@@ -375,7 +375,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   function setZoom(zoom: number, anchor = zoomAnchor()) {
     setState(zoomAt(state, Math.min(4, Math.max(0.2, zoom)), anchor)); applyVisibility(); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`;
   }
-  function fit() {
+  function fit(announce = true) {
     const svg = stage.querySelector<SVGSVGElement>('svg');
     if (!svg) return;
     const stageRect = stage.getBoundingClientRect();
@@ -394,12 +394,12 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     setState(fitRect({ width: canvas.clientWidth, height: canvas.clientHeight }, content));
     applyVisibility();
     transform();
-    status.textContent = state.focusedId ? 'Focused element fitted' : 'Canvas fitted';
+    if (announce) status.textContent = state.focusedId ? 'Focused element fitted' : 'Canvas fitted';
   }
 
   root.querySelector('[aria-label="Zoom in"]')!.addEventListener('click', () => setZoom(state.zoom * 1.2));
   root.querySelector('[aria-label="Zoom out"]')!.addEventListener('click', () => setZoom(state.zoom / 1.2));
-  root.querySelector('[aria-label="Fit canvas"]')!.addEventListener('click', fit);
+  root.querySelector('[aria-label="Fit canvas"]')!.addEventListener('click', () => fit());
   inspectorToggle.addEventListener('click', () => setDetailsHidden(!state.detailsHidden));
   root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => input.addEventListener('change', () => { const key = input.dataset.overlay as 'earned' | 'gap' | 'violation'; setState({ overlays: { ...state.overlays, [key]: input.checked } }); applyVisibility(); }));
   breadcrumbs.addEventListener('click', (event) => { const target = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-focus-id]'); if (target) focus(target.dataset.focusId || undefined); });

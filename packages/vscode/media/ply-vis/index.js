@@ -174,12 +174,12 @@ const Ye = 500, J = (t, o) => `<button type="button" aria-label="${t}" title="${
 function _e(t, o, f = []) {
   t.innerHTML = He;
   const u = t.querySelector(".ply-vis"), p = u.querySelector(".ply-canvas"), s = u.querySelector(".ply-stage"), a = u.querySelector(".ply-tooltip"), g = u.querySelector(".ply-inspector"), w = u.querySelector(".ply-inspector-toggle"), S = u.querySelector(".ply-workspace"), b = u.querySelector(".ply-status"), M = u.querySelector(".ply-toolbar fieldset"), A = u.querySelector(".ply-breadcrumbs");
-  let c = Re(), h, I, Q = 0, x, q;
+  let c = Re(), y, I, Q = 0, x, q;
   const ee = () => o.post({ channel: "ply-vis", version: Ne, type: "persist-state", state: c }), L = (e, n = !0) => {
     c = ue(c, e), n && ee();
   }, R = () => {
     s.style.transform = `translate(${c.panX}px, ${c.panY}px) scale(${c.zoom})`;
-  }, me = () => h ? Object.values(h.elements).filter((e) => !c.focusedId || e.id === c.focusedId || X(e, c.focusedId, h.elements)) : [];
+  }, me = () => y ? Object.values(y.elements).filter((e) => !c.focusedId || e.id === c.focusedId || X(e, c.focusedId, y.elements)) : [];
   function T() {
     g.hidden = c.detailsHidden, S.classList.toggle("is-inspector-hidden", c.detailsHidden);
     const e = c.detailsHidden ? "Show details" : "Hide details";
@@ -199,16 +199,16 @@ function _e(t, o, f = []) {
   function he(e) {
     let n = 0, i = e;
     for (; i?.parentId && i.id !== c.focusedId; )
-      i = h?.elements[i.parentId], n += 1;
+      i = y?.elements[i.parentId], n += 1;
     return c.focusedId && i?.id !== c.focusedId ? Number.POSITIVE_INFINITY : n;
   }
   const ye = () => c.zoom < 0.8 ? 1 : c.zoom < 1.5 ? 2 : Number.POSITIVE_INFINITY;
   function ge() {
-    if (A.replaceChildren(), !h) return;
+    if (A.replaceChildren(), !y) return;
     const e = [];
-    let n = c.focusedId ? h.elements[c.focusedId] : void 0;
+    let n = c.focusedId ? y.elements[c.focusedId] : void 0;
     for (; n; )
-      e.unshift(n), n = n.parentId ? h.elements[n.parentId] : void 0;
+      e.unshift(n), n = n.parentId ? y.elements[n.parentId] : void 0;
     const i = document.createElement("button");
     i.type = "button", i.textContent = "Workspace", i.dataset.focusId = "", A.append(i);
     for (const l of e) {
@@ -219,7 +219,7 @@ function _e(t, o, f = []) {
   function Y(e) {
     g.replaceChildren();
     const n = document.createElement("h2");
-    if (n.textContent = e?.label ?? "Details", g.append(n), !e || !h) {
+    if (n.textContent = e?.label ?? "Details", g.append(n), !e || !y) {
       const r = document.createElement("p");
       r.textContent = "Select an item to inspect its declaration and evidence.", g.append(r);
       return;
@@ -227,10 +227,10 @@ function _e(t, o, f = []) {
     const i = e.declaration?.split(`
 `).filter(Boolean);
     g.append(j("Declaration", i?.length ? i : ["No declaration text supplied."])), g.append(j("Verdict", [e.evidence.verdict])), g.append(j("Statuses", e.evidence.statuses.length ? e.evidence.statuses : ["No statuses supplied."]));
-    const l = Object.entries(e.evidence).filter(([r]) => !["verdict", "statuses"].includes(r)).map(([r, y]) => `${r}: ${typeof y == "string" ? y : JSON.stringify(y)}`);
+    const l = Object.entries(e.evidence).filter(([r]) => !["verdict", "statuses"].includes(r)).map(([r, h]) => `${r}: ${typeof h == "string" ? h : JSON.stringify(h)}`);
     g.append(j("Earned evidence", l.length ? l : ["No additional evidence details supplied."])), g.append(j("Limitations", e.limitations?.length ? e.limitations : ["No limitations supplied."]));
-    const d = new Map(h.diagnostics.map((r) => [r.id, r])), m = e.diagnosticIds.map((r) => d.get(r)).filter((r) => r !== void 0).map((r) => `${r.code} — ${r.severity}: ${r.message}`);
-    if (g.append(j("Diagnostics", m.length ? m : ["No diagnostics supplied."])), g.append(ve(h.run)), e.source) {
+    const d = new Map(y.diagnostics.map((r) => [r.id, r])), m = e.diagnosticIds.map((r) => d.get(r)).filter((r) => r !== void 0).map((r) => `${r.code} — ${r.severity}: ${r.message}`);
+    if (g.append(j("Diagnostics", m.length ? m : ["No diagnostics supplied."])), g.append(ve(y.run)), e.source) {
       const r = document.createElement("button");
       r.type = "button", r.className = "ply-source", r.textContent = `Open ${e.source.file}:${e.source.startLine + 1}:${e.source.startColumn + 1}`, r.addEventListener("click", () => o.post({ channel: "ply-vis", version: 1, type: "navigate", source: e.source })), g.append(r);
     }
@@ -259,11 +259,11 @@ function _e(t, o, f = []) {
       ["Finished", new Date(e.completedAt).toLocaleString()],
       ["Checked folder", e.root.path === "." ? "Workspace root" : e.root.path]
     ];
-    for (const [r, y] of m) {
+    for (const [r, h] of m) {
       const $ = document.createElement("dt");
       $.textContent = r;
       const z = document.createElement("dd");
-      z.textContent = y, d.append($, z);
+      z.textContent = h, d.append($, z);
     }
     return i.append(l, d), i;
   }
@@ -272,7 +272,7 @@ function _e(t, o, f = []) {
   }
   function C(e) {
     const n = e.dataset.elementId ?? e.dataset.plyId;
-    return n ? h?.elements[n] : void 0;
+    return n ? y?.elements[n] : void 0;
   }
   function be(e) {
     const n = new Set((e.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean));
@@ -289,15 +289,15 @@ function _e(t, o, f = []) {
     x && ne(x), D(), x = void 0, a.hidden = !0, a.replaceChildren();
   }
   function we(e, n) {
-    if (!h) return [];
+    if (!y) return [];
     const i = [`${e.kind} · Verdict: ${e.evidence.verdict}`];
     e.evidence.statuses.length && i.push(`Statuses: ${e.evidence.statuses.join(", ")}`);
-    const l = Object.entries(e.evidence).filter(([r, y]) => !["verdict", "statuses"].includes(r) && y !== !1 && y !== void 0).map(([r, y]) => `${r}: ${typeof y == "string" ? y : JSON.stringify(y)}`);
+    const l = Object.entries(e.evidence).filter(([r, h]) => !["verdict", "statuses"].includes(r) && h !== !1 && h !== void 0).map(([r, h]) => `${r}: ${typeof h == "string" ? h : JSON.stringify(h)}`);
     i.push(...l), i.push(...(e.limitations ?? []).map((r) => `Limitation: ${r}`));
-    const d = new Map(h.diagnostics.map((r) => [r.id, r]));
+    const d = new Map(y.diagnostics.map((r) => [r.id, r]));
     for (const r of e.diagnosticIds) {
-      const y = d.get(r);
-      y && i.push(`${y.code} — ${y.severity}: ${y.message}`);
+      const h = d.get(r);
+      h && i.push(`${h.code} — ${h.severity}: ${h.message}`);
     }
     e.source && i.push(`Source: ${e.source.file}:${e.source.startLine + 1}:${e.source.startColumn + 1}`);
     const m = n.dataset.plyTitle?.trim();
@@ -306,8 +306,8 @@ function _e(t, o, f = []) {
   function oe(e, n) {
     const i = p.getBoundingClientRect(), l = 8;
     a.style.maxHeight = `${Math.max(0, i.height - l * 2)}px`;
-    const d = 12, m = a.offsetWidth, r = a.offsetHeight, y = Math.max(l, i.width - m - l), $ = Math.max(l, i.height - r - l), z = e - i.left + d, N = n - i.top + d, W = N + r <= i.height - l ? N : n - i.top - r - d;
-    a.style.left = `${Math.min(y, Math.max(l, z))}px`, a.style.top = `${Math.min($, Math.max(l, W))}px`;
+    const d = 12, m = a.offsetWidth, r = a.offsetHeight, h = Math.max(l, i.width - m - l), $ = Math.max(l, i.height - r - l), z = e - i.left + d, N = n - i.top + d, W = N + r <= i.height - l ? N : n - i.top - r - d;
+    a.style.left = `${Math.min(h, Math.max(l, z))}px`, a.style.top = `${Math.min($, Math.max(l, W))}px`;
   }
   function ie(e, n, i) {
     const l = C(e), d = e.dataset.plyTitle?.trim();
@@ -318,9 +318,9 @@ function _e(t, o, f = []) {
     x && x !== e && ne(x), x = e;
     const m = document.createElement("span");
     if (l) {
-      const y = document.createElement("strong");
-      y.textContent = l.label, m.textContent = we(l, e).join(`
-`), a.replaceChildren(y, m);
+      const h = document.createElement("strong");
+      h.textContent = l.label, m.textContent = we(l, e).join(`
+`), a.replaceChildren(h, m);
     } else
       m.textContent = d, a.replaceChildren(m);
     a.hidden = !1, be(e);
@@ -333,15 +333,15 @@ function _e(t, o, f = []) {
     }, Ye);
   }
   function O() {
-    if (!h) return;
-    const e = [...s.querySelectorAll("[data-element-id], [data-ply-id]")], n = c.focusedId ? h.elements[c.focusedId] : void 0;
+    if (!y) return;
+    const e = [...s.querySelectorAll("[data-element-id], [data-ply-id]")], n = c.focusedId ? y.elements[c.focusedId] : void 0;
     for (const d of e) {
-      const m = d.dataset.elementId ?? d.dataset.plyId ?? "", r = h.elements[m];
+      const m = d.dataset.elementId ?? d.dataset.plyId ?? "", r = y.elements[m];
       if (!r) {
         d.removeAttribute("hidden");
         continue;
       }
-      const y = /* @__PURE__ */ new Set([r.evidence.verdict, ...r.evidence.statuses]), $ = y.has("violation") ? "violation" : y.has("gap") ? "gap" : y.has("earned") ? "earned" : "declared", z = $ === "declared" || c.overlays[$], N = n ? X(n, r.id, h.elements) : !1, W = !c.focusedId || r.id === c.focusedId || X(r, c.focusedId, h.elements) || N, Se = N || he(r) <= ye();
+      const h = /* @__PURE__ */ new Set([r.evidence.verdict, ...r.evidence.statuses]), $ = h.has("violation") ? "violation" : h.has("gap") ? "gap" : h.has("earned") ? "earned" : "declared", z = $ === "declared" || c.overlays[$], N = n ? X(n, r.id, y.elements) : !1, W = !c.focusedId || r.id === c.focusedId || X(r, c.focusedId, y.elements) || N, Se = N || he(r) <= ye();
       d.toggleAttribute("hidden", !W || !Se || !z && !N);
       const Ae = [r.evidence.verdict, ...r.evidence.statuses].filter(Boolean).join(", ") || "declared";
       d.setAttribute("role", "button"), d.setAttribute("aria-label", `${r.kind}: ${r.label}; ${Ae}`), d.dataset.state = $, d.classList.toggle("is-selected", r.id === c.selectedId), d === x && (d.hasAttribute("hidden") || !d.isConnected) && k();
@@ -373,7 +373,7 @@ function _e(t, o, f = []) {
     }
   }
   function xe(e) {
-    h = e, L({ runId: e.run.id, selectedId: void 0, focusedId: void 0, detailsHidden: !0, zoom: 1, panX: 0, panY: 0 }, !1);
+    y = e, L({ runId: e.run.id, selectedId: void 0, focusedId: void 0, detailsHidden: !0, zoom: 1, panX: 0, panY: 0 }, !1);
     const n = Object.keys(e.elements).length > 0;
     M.hidden = !n, A.hidden = !n, w.hidden = !n, n || te(!0, !1), T(), k(), s.innerHTML = e.svg;
     for (const l of [...s.querySelectorAll("title")]) {
@@ -382,7 +382,7 @@ function _e(t, o, f = []) {
     }
     p.dataset.empty = "false";
     const i = p.querySelector(".ply-empty");
-    i && i.remove(), O(), R(), Y(c.selectedId ? e.elements[c.selectedId] : void 0), b.textContent = e.run.tool.version === "render" ? "Rendered Ply spec" : `Showing run ${e.run.id}`, typeof window.requestAnimationFrame == "function" && window.requestAnimationFrame(P);
+    i && i.remove(), O(), R(), Y(c.selectedId ? e.elements[c.selectedId] : void 0), b.textContent = e.run.tool.version === "render" ? "Rendered Ply spec" : `Showing run ${e.run.id}`, typeof window.requestAnimationFrame == "function" && window.requestAnimationFrame(() => P(!1));
   }
   function Z(e) {
     try {
@@ -394,13 +394,13 @@ function _e(t, o, f = []) {
     }
   }
   function _(e) {
-    h?.elements[e] && (L({ selectedId: e, detailsHidden: !1 }), T(), O(), Y(h.elements[e]));
+    y?.elements[e] && (L({ selectedId: e, detailsHidden: !1 }), T(), O(), Y(y.elements[e]));
   }
   function re(e) {
     [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((i) => C(i)?.id === e)?.focus();
   }
   function H(e) {
-    e && !h?.elements[e] || (e && !h.elements[e].parentId && (e = void 0), L({ focusedId: e, selectedId: e, detailsHidden: !e }), T(), O(), Y(e ? h?.elements[e] : void 0), P());
+    e && !y?.elements[e] || (e && !y.elements[e].parentId && (e = void 0), L({ focusedId: e, selectedId: e, detailsHidden: !e }), T(), O(), Y(e ? y?.elements[e] : void 0), P());
   }
   function Ee() {
     const e = p.getBoundingClientRect(), i = (c.selectedId ? [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((l) => C(l)?.id === c.selectedId) : void 0)?.getBoundingClientRect();
@@ -409,20 +409,20 @@ function _e(t, o, f = []) {
   function F(e, n = Ee()) {
     L(Be(c, Math.min(4, Math.max(0.2, e)), n)), O(), R(), b.textContent = `Zoom ${Math.round(c.zoom * 100)}%`;
   }
-  function P() {
-    const e = s.querySelector("svg");
-    if (!e) return;
-    const n = s.getBoundingClientRect(), i = c.focusedId ? [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((r) => C(r)?.id === c.focusedId) : e;
-    if (!i) return;
-    const l = i.getBoundingClientRect(), d = c.zoom || 1, m = {
-      x: (l.left - n.left) / d,
-      y: (l.top - n.top) / d,
-      width: l.width / d,
-      height: l.height / d
+  function P(e = !0) {
+    const n = s.querySelector("svg");
+    if (!n) return;
+    const i = s.getBoundingClientRect(), l = c.focusedId ? [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((h) => C(h)?.id === c.focusedId) : n;
+    if (!l) return;
+    const d = l.getBoundingClientRect(), m = c.zoom || 1, r = {
+      x: (d.left - i.left) / m,
+      y: (d.top - i.top) / m,
+      width: d.width / m,
+      height: d.height / m
     };
-    L(De({ width: p.clientWidth, height: p.clientHeight }, m)), O(), R(), b.textContent = c.focusedId ? "Focused element fitted" : "Canvas fitted";
+    L(De({ width: p.clientWidth, height: p.clientHeight }, r)), O(), R(), e && (b.textContent = c.focusedId ? "Focused element fitted" : "Canvas fitted");
   }
-  u.querySelector('[aria-label="Zoom in"]').addEventListener("click", () => F(c.zoom * 1.2)), u.querySelector('[aria-label="Zoom out"]').addEventListener("click", () => F(c.zoom / 1.2)), u.querySelector('[aria-label="Fit canvas"]').addEventListener("click", P), w.addEventListener("click", () => te(!c.detailsHidden)), u.querySelectorAll("[data-overlay]").forEach((e) => e.addEventListener("change", () => {
+  u.querySelector('[aria-label="Zoom in"]').addEventListener("click", () => F(c.zoom * 1.2)), u.querySelector('[aria-label="Zoom out"]').addEventListener("click", () => F(c.zoom / 1.2)), u.querySelector('[aria-label="Fit canvas"]').addEventListener("click", () => P()), w.addEventListener("click", () => te(!c.detailsHidden)), u.querySelectorAll("[data-overlay]").forEach((e) => e.addEventListener("change", () => {
     const n = e.dataset.overlay;
     L({ overlays: { ...c.overlays, [n]: e.checked } }), O();
   })), A.addEventListener("click", (e) => {
@@ -504,14 +504,14 @@ function _e(t, o, f = []) {
     }
     if (e.key === "Escape") {
       e.preventDefault();
-      const l = c.focusedId ? h?.elements[c.focusedId]?.parentId : void 0;
+      const l = c.focusedId ? y?.elements[c.focusedId]?.parentId : void 0;
       H(l);
     }
   });
   const ae = (e) => {
     qe(e.data) && (e.data.type === "artifact" ? Z(e.data.envelope) : (c = ue(c, e.data.state), u.querySelectorAll("[data-overlay]").forEach((n) => {
       n.checked = c.overlays[n.dataset.overlay];
-    }), h && (T(), O(), R(), Y(c.selectedId ? h.elements[c.selectedId] : void 0))));
+    }), y && (T(), O(), R(), Y(c.selectedId ? y.elements[c.selectedId] : void 0))));
   }, de = (e) => {
     b.textContent = `Viewer error: ${e}`, o.post({ channel: "ply-vis", version: 1, type: "error", message: e });
   }, ce = (e) => de(e.message || "Unknown runtime error"), le = (e) => de(e.reason instanceof Error ? e.reason.message : String(e.reason));

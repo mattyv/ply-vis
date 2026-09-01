@@ -19,8 +19,10 @@ test('boots offline with every supplied visual state and accessible controls', a
 
 test('zooms, pans, fits, filters overlays, and restores immutable view state', async ({ page }) => {
   const stage = page.locator('.ply-stage');
+  const beforeZoom = await page.evaluate(() => (window as any).viewer.getState());
   await page.getByRole('button', { name: 'Zoom in' }).click();
-  await expect(stage).toHaveCSS('transform', /matrix\(1\.2/);
+  const afterZoom = await page.evaluate(() => (window as any).viewer.getState());
+  expect(afterZoom.zoom).toBeCloseTo(beforeZoom.zoom * 1.2);
   const canvas = page.locator('.ply-canvas');
   const node = page.locator('[data-element-id="workspace"] rect');
   const box = await node.boundingBox();
@@ -29,7 +31,10 @@ test('zooms, pans, fits, filters overlays, and restores immutable view state', a
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2 + 40);
   await page.mouse.up();
-  await expect(stage).toHaveCSS('transform', /matrix\(1\.2, 0, 0, 1\.2, 30, 40\)/);
+  const afterPan = await page.evaluate(() => (window as any).viewer.getState());
+  expect(afterPan.zoom).toBeCloseTo(afterZoom.zoom);
+  expect(afterPan.panX).toBeCloseTo(afterZoom.panX + 30);
+  expect(afterPan.panY).toBeCloseTo(afterZoom.panY + 40);
   expect(await page.evaluate(() => (window as any).viewer.getState().selectedId)).toBeUndefined();
 
   // A true drag must not consume the click behavior of a later pointer gesture.
@@ -184,7 +189,8 @@ test('keyboard navigation selects and focuses semantically', async ({ page }) =>
   await canvas.press('Enter');
   await expect(page.getByRole('navigation', { name: 'Semantic focus' }).getByText('Ledger')).toBeVisible();
   await canvas.press('Escape');
-  await expect(page.getByRole('navigation', { name: 'Semantic focus' }).getByText('Demo workspace')).toBeVisible();
+  expect(await page.evaluate(() => (window as any).viewer.getState().focusedId)).toBeUndefined();
+  await expect(page.getByRole('navigation', { name: 'Semantic focus' }).getByRole('button', { name: 'Workspace', exact: true })).toHaveCount(1);
 });
 
 test('reports runtime errors through the versioned bridge without discarding the snapshot', async ({ page }) => {
