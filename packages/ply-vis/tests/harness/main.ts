@@ -1,4 +1,5 @@
 import fixtureText from '../fixtures/canonical-v1.json?raw';
+import realPlyRenderText from '../fixtures/real-ply-render.json?raw';
 import { mountViewer, type HostRequest, type VisualEnvelope } from '../../src';
 
 const fixture = JSON.parse(fixtureText) as VisualEnvelope;
@@ -20,4 +21,6 @@ function makeLargeFixture(componentCount = 500, functionsPerComponent = 10): Vis
   return { protocolVersion: 1, run: { id: 'large', completedAt: '2026-08-28T05:00:00Z', root: { path: '/large' }, tool: { name: 'ply', version: 'test' }, outcome: 'violation' }, svg: parts.join(''), elements, diagnostics: [] };
 }
 
-Object.assign(window, { viewer, messages, fixture, makeLargeFixture });
+const realPlyRender = JSON.parse(realPlyRenderText) as VisualEnvelope;
+
+Object.assign(window, { viewer, messages, fixture, makeLargeFixture, realPlyRender });

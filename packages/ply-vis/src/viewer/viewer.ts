@@ -285,6 +285,12 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const bounds: Rect = { x: focusBounds.x, y: focusBounds.y, width: focusBounds.width, height: focusBounds.height };
     for (const child of [...svg.children]) {
       if (!(child instanceof SVGElement) || child.matches('[data-element-id], [data-ply-id], defs, style, title')) continue;
+      // Ply wraps each top-level box in a plain positioning group that carries
+      // no identity of its own, so the thing being focused is usually inside
+      // one of these rather than beside it. Switching off a group that holds
+      // the focus switches off the focus: the viewer would report the item as
+      // focused while the canvas went blank.
+      if (child.contains(focusNode)) continue;
       const graphics = child as SVGGraphicsElement;
       if (typeof graphics.getBBox !== 'function') continue;
       let childBounds: DOMRect;

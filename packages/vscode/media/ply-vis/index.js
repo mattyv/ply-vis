@@ -360,7 +360,7 @@ function _e(t, o, f = []) {
     if (!n || typeof n.getBBox != "function") return;
     const i = n.getBBox(), l = { x: i.x, y: i.y, width: i.width, height: i.height };
     for (const d of [...e.children]) {
-      if (!(d instanceof SVGElement) || d.matches("[data-element-id], [data-ply-id], defs, style, title")) continue;
+      if (!(d instanceof SVGElement) || d.matches("[data-element-id], [data-ply-id], defs, style, title") || d.contains(n)) continue;
       const m = d;
       if (typeof m.getBBox != "function") continue;
       let r;
