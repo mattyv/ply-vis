@@ -238,6 +238,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   function applyVisibility() {
     if (!active) return;
     const nodes = [...stage.querySelectorAll<SVGElement>('[data-element-id], [data-ply-id]')];
+    const focused = state.focusedId ? active.elements[state.focusedId] : undefined;
     for (const node of nodes) {
       const nodeId = node.dataset.elementId ?? node.dataset.plyId ?? '';
       const element = active.elements[nodeId];
@@ -245,8 +246,9 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       const suppliedStates = new Set([element.evidence.verdict, ...element.evidence.statuses]);
       const stateClass = suppliedStates.has('violation') ? 'violation' : suppliedStates.has('gap') ? 'gap' : suppliedStates.has('earned') ? 'earned' : 'declared';
       const overlayVisible = stateClass === 'declared' || state.overlays[stateClass];
-      const focusVisible = !state.focusedId || element.id === state.focusedId || isDescendant(element, state.focusedId, active.elements);
-      node.toggleAttribute('hidden', !overlayVisible || !focusVisible);
+      const focusAncestor = focused ? isDescendant(focused, element.id, active.elements) : false;
+      const focusVisible = !state.focusedId || element.id === state.focusedId || isDescendant(element, state.focusedId, active.elements) || focusAncestor;
+      node.toggleAttribute('hidden', !focusVisible || (!overlayVisible && !focusAncestor));
       const classifications = [element.evidence.verdict, ...element.evidence.statuses].filter(Boolean).join(', ') || 'declared';
       node.setAttribute('role', 'button'); node.setAttribute('aria-label', `${element.kind}: ${element.label}; ${classifications}`); node.dataset.state = stateClass;
       node.classList.toggle('is-selected', element.id === state.selectedId);
