@@ -6,11 +6,11 @@ import { containsRect, fitRect, type Rect } from './viewport';
 
 export interface Viewer { load(value: unknown): boolean; destroy(): void; getState(): ViewState }
 
+const TOOLTIP_DELAY_MS = 500;
 const iconButton = (label: string, text: string) => `<button type="button" aria-label="${label}" title="${label}">${text}</button>`;
 const html = `
   <section class="ply-vis" aria-label="Ply visual evidence viewer">
     <header class="ply-toolbar">
-      <label>Run <select data-role="runs" aria-label="Run snapshot"></select></label>
       <div class="ply-tools" role="group" aria-label="Canvas controls">
         ${iconButton('Zoom out', '−')}${iconButton('Zoom in', '+')}${iconButton('Fit canvas', 'Fit')}
       </div>
@@ -43,14 +43,14 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const inspectorToggle = root.querySelector<HTMLButtonElement>('.ply-inspector-toggle')!;
   const workspace = root.querySelector<HTMLElement>('.ply-workspace')!;
   const status = root.querySelector<HTMLElement>('.ply-status')!;
-  const runs = root.querySelector<HTMLSelectElement>('[data-role="runs"]')!;
+  const overlays = root.querySelector<HTMLFieldSetElement>('.ply-toolbar fieldset')!;
   const breadcrumbs = root.querySelector<HTMLElement>('.ply-breadcrumbs')!;
-  const snapshots = new Map<string, VisualEnvelope>();
   let state = initialViewState();
   let active: VisualEnvelope | undefined;
   let drag: { x: number; y: number; panX: number; panY: number; pointerId: number; moved: boolean } | undefined;
   let suppressClickUntil = 0;
   let tooltipTarget: SVGElement | undefined;
+  let tooltipTimer: number | undefined;
 
   const postState = () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'persist-state', state });
   const setState = (patch: Partial<ViewState>, persist = true) => { state = updateViewState(state, patch); if (persist) postState(); };
@@ -101,13 +101,37 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const diagnosticsById = new Map(active.diagnostics.map((item) => [item.id, item]));
     const diagnostics = element.diagnosticIds.map((id) => diagnosticsById.get(id)).filter((item) => item !== undefined).map((item) => `${item.code} — ${item.severity}: ${item.message}`);
     inspector.append(section('Diagnostics', diagnostics.length ? diagnostics : ['No diagnostics supplied.']));
-    inspector.append(section('Run', [`${active.run.id} — ${active.run.completedAt}`, `Root: ${active.run.root.path}`, `Tool: ${active.run.tool.name} ${active.run.tool.version}`, `Outcome: ${active.run.outcome}`]));
+    inspector.append(runDetails(active.run));
     if (element.source) { const button = document.createElement('button'); button.type = 'button'; button.className = 'ply-source'; button.textContent = `Open ${element.source.file}:${element.source.startLine + 1}:${element.source.startColumn + 1}`; button.addEventListener('click', () => bridge.post({ channel: 'ply-vis', version: 1, type: 'navigate', source: element.source! })); inspector.append(button); }
   }
 
   function section(titleText: string, values: readonly string[]): HTMLElement {
     const sectionElement = document.createElement('section'); const heading = document.createElement('h3'); heading.textContent = titleText; sectionElement.append(heading);
     const list = document.createElement('ul'); for (const value of values) { const item = document.createElement('li'); item.textContent = value; list.append(item); } sectionElement.append(list); return sectionElement;
+  }
+  function runDetails(run: VisualEnvelope['run']): HTMLElement {
+    const labels: Record<VisualEnvelope['run']['outcome'], string> = {
+      clean: 'Checks completed',
+      violation: 'A declared rule was broken',
+      timeout: 'Stopped before checks finished',
+      missing_evidence: 'Some promised evidence is missing',
+      narrowed_evidence: 'Checks covered less than promised',
+    };
+    const sectionElement = document.createElement('section');
+    const heading = document.createElement('h3'); heading.textContent = 'Run details';
+    const list = document.createElement('dl');
+    const rows: ReadonlyArray<readonly [string, string]> = [
+      ['Result', labels[run.outcome]],
+      ['Finished', new Date(run.completedAt).toLocaleString()],
+      ['Checked folder', run.root.path === '.' ? 'Workspace root' : run.root.path],
+    ];
+    for (const [term, value] of rows) {
+      const dt = document.createElement('dt'); dt.textContent = term;
+      const dd = document.createElement('dd'); dd.textContent = value;
+      list.append(dt, dd);
+    }
+    sectionElement.append(heading, list);
+    return sectionElement;
   }
 
   function tooltipNode(target: EventTarget | null): SVGElement | undefined {
@@ -131,8 +155,14 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     else node.removeAttribute('aria-describedby');
   }
 
+  function cancelTooltipTimer() {
+    if (tooltipTimer !== undefined) window.clearTimeout(tooltipTimer);
+    tooltipTimer = undefined;
+  }
+
   function hideTooltip() {
     if (tooltipTarget) removeTooltipDescription(tooltipTarget);
+    cancelTooltipTimer();
     tooltipTarget = undefined;
     tooltip.hidden = true;
     tooltip.replaceChildren();
@@ -161,6 +191,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   function positionTooltip(clientX: number, clientY: number) {
     const canvasRect = canvas.getBoundingClientRect();
     const margin = 8;
+    tooltip.style.maxHeight = `${Math.max(0, canvasRect.height - margin * 2)}px`;
     const gap = 12;
     const width = tooltip.offsetWidth;
     const height = tooltip.offsetHeight;
@@ -194,13 +225,22 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     positionTooltip(clientX ?? nodeRect.left + nodeRect.width / 2, clientY ?? nodeRect.bottom);
   }
 
+  function scheduleTooltip(node: SVGElement, clientX: number, clientY: number) {
+    cancelTooltipTimer();
+    if (tooltipTarget && tooltipTarget !== node) hideTooltip();
+    tooltipTimer = window.setTimeout(() => {
+      tooltipTimer = undefined;
+      showTooltip(node, clientX, clientY);
+    }, TOOLTIP_DELAY_MS);
+  }
+
   function applyVisibility() {
     if (!active) return;
     const nodes = [...stage.querySelectorAll<SVGElement>('[data-element-id], [data-ply-id]')];
     for (const node of nodes) {
       const nodeId = node.dataset.elementId ?? node.dataset.plyId ?? '';
       const element = active.elements[nodeId];
-      if (!element) { node.setAttribute('hidden', ''); continue; }
+      if (!element) { node.removeAttribute('hidden'); continue; }
       const suppliedStates = new Set([element.evidence.verdict, ...element.evidence.statuses]);
       const stateClass = suppliedStates.has('violation') ? 'violation' : suppliedStates.has('gap') ? 'gap' : suppliedStates.has('earned') ? 'earned' : 'declared';
       const overlayVisible = stateClass === 'declared' || state.overlays[stateClass];
@@ -245,8 +285,13 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   }
 
   function show(envelope: VisualEnvelope) {
-    active = envelope; runs.value = envelope.run.id;
-    if (state.runId !== envelope.run.id) setState({ runId: envelope.run.id, selectedId: undefined, focusedId: undefined }, false);
+    active = envelope;
+    setState({ runId: envelope.run.id, selectedId: undefined, focusedId: undefined, detailsHidden: true, zoom: 1, panX: 0, panY: 0 }, false);
+    const hasEvidence = Object.keys(envelope.elements).length > 0;
+    overlays.hidden = !hasEvidence;
+    breadcrumbs.hidden = !hasEvidence;
+    inspectorToggle.hidden = !hasEvidence;
+    if (!hasEvidence) setDetailsHidden(true, false);
     renderDetailsVisibility();
     hideTooltip();
     stage.innerHTML = envelope.svg;
@@ -268,15 +313,14 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     canvas.dataset.empty = 'false';
     const empty = canvas.querySelector('.ply-empty'); if (empty) empty.remove();
     applyVisibility(); transform(); renderInspector(state.selectedId ? envelope.elements[state.selectedId] : undefined);
-    status.textContent = `Showing run ${envelope.run.id}`;
+    status.textContent = envelope.run.tool.version === 'render' ? 'Rendered Ply spec' : `Showing run ${envelope.run.id}`;
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(fit);
   }
 
   function load(value: unknown): boolean {
     try {
       const parsed = parseEnvelope(value);
       const envelope = Object.freeze({ ...parsed, svg: sanitizeSvg(parsed.svg) });
-      snapshots.set(envelope.run.id, envelope);
-      if (![...runs.options].some((option) => option.value === envelope.run.id)) runs.add(new Option(`${envelope.run.id} — ${envelope.run.completedAt}`, envelope.run.id));
       show(envelope);
       delete root.dataset.error;
       return true;
@@ -294,7 +338,12 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const node = [...stage.querySelectorAll<SVGElement>('[data-element-id], [data-ply-id]')].find((candidate) => elementForNode(candidate)?.id === id);
     node?.focus();
   }
-  function focus(id?: string) { if (id && !active?.elements[id]) return; setState({ focusedId: id, selectedId: id, ...(id ? { detailsHidden: false } : {}) }); renderDetailsVisibility(); applyVisibility(); renderInspector(id ? active?.elements[id] : undefined); fit(); }
+  function focus(id?: string) {
+    if (id && !active?.elements[id]) return;
+    if (id && !active!.elements[id]!.parentId) id = undefined;
+    setState({ focusedId: id, selectedId: id, detailsHidden: !id });
+    renderDetailsVisibility(); applyVisibility(); renderInspector(id ? active?.elements[id] : undefined); fit();
+  }
   function setZoom(zoom: number) { setState({ zoom: Math.min(4, Math.max(0.2, zoom)) }); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`; }
   function fit() {
     const svg = stage.querySelector<SVGSVGElement>('svg');
@@ -321,7 +370,6 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   root.querySelector('[aria-label="Zoom out"]')!.addEventListener('click', () => setZoom(state.zoom / 1.2));
   root.querySelector('[aria-label="Fit canvas"]')!.addEventListener('click', fit);
   inspectorToggle.addEventListener('click', () => setDetailsHidden(!state.detailsHidden));
-  runs.addEventListener('change', () => { const envelope = snapshots.get(runs.value); if (envelope) { show(envelope); postState(); } });
   root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => input.addEventListener('change', () => { const key = input.dataset.overlay as 'earned' | 'gap' | 'violation'; setState({ overlays: { ...state.overlays, [key]: input.checked } }); applyVisibility(); }));
   breadcrumbs.addEventListener('click', (event) => { const target = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-focus-id]'); if (target) focus(target.dataset.focusId || undefined); });
   stage.addEventListener('click', (event) => {
@@ -329,19 +377,29 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const node = (event.target as Element).closest<SVGElement>('[data-element-id], [data-ply-id]'); const id = node?.dataset.elementId ?? node?.dataset.plyId; if (id) select(id);
   });
   stage.addEventListener('dblclick', (event) => { const node = (event.target as Element).closest<SVGElement>('[data-element-id], [data-ply-id]'); const id = node?.dataset.elementId ?? node?.dataset.plyId; if (id) focus(id); });
-  stage.addEventListener('pointerover', (event) => { const node = tooltipNode(event.target); if (node) showTooltip(node, event.clientX, event.clientY); });
-  stage.addEventListener('pointermove', (event) => { const node = tooltipNode(event.target); if (node && node === tooltipTarget && !tooltip.hidden) positionTooltip(event.clientX, event.clientY); });
+  stage.addEventListener('pointerover', (event) => { const node = tooltipNode(event.target); if (node) scheduleTooltip(node, event.clientX, event.clientY); });
+  stage.addEventListener('pointermove', (event) => {
+    const node = tooltipNode(event.target);
+    if (!node) { cancelTooltipTimer(); return; }
+    if (node === tooltipTarget && !tooltip.hidden) positionTooltip(event.clientX, event.clientY);
+    else scheduleTooltip(node, event.clientX, event.clientY);
+  });
   stage.addEventListener('pointerout', (event) => {
     const node = tooltipNode(event.target);
-    if (!node || node !== tooltipTarget || (event.relatedTarget instanceof Node && node.contains(event.relatedTarget))) return;
+    if (!node || (event.relatedTarget instanceof Node && (node.contains(event.relatedTarget) || tooltip.contains(event.relatedTarget)))) return;
     if (!node.contains(document.activeElement)) hideTooltip();
   });
-  stage.addEventListener('focusin', (event) => { const node = tooltipNode(event.target); if (node) showTooltip(node); });
+  stage.addEventListener('focusin', (event) => { const node = tooltipNode(event.target); if (node) { cancelTooltipTimer(); showTooltip(node); } });
   stage.addEventListener('focusout', (event) => {
     const node = tooltipNode(event.target);
-    if (!node || node !== tooltipTarget || (event.relatedTarget instanceof Node && node.contains(event.relatedTarget))) return;
+    if (!node || (event.relatedTarget instanceof Node && node.contains(event.relatedTarget))) return;
     if (!node.matches(':hover')) hideTooltip();
   });
+  tooltip.addEventListener('pointerleave', (event) => {
+    if (!(event.relatedTarget instanceof Node && tooltipTarget?.contains(event.relatedTarget))) hideTooltip();
+  });
+  tooltip.addEventListener('wheel', (event) => event.stopPropagation());
+  tooltip.addEventListener('pointerdown', (event) => event.stopPropagation());
   canvas.addEventListener('wheel', (event) => { event.preventDefault(); setZoom(state.zoom * (event.deltaY < 0 ? 1.1 : 0.9)); }, { passive: false });
   canvas.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
@@ -386,9 +444,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     else {
       state = updateViewState(state, event.data.state);
       root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => { input.checked = state.overlays[input.dataset.overlay as keyof ViewState['overlays']]; });
-      const restoredRun = state.runId ? snapshots.get(state.runId) : undefined;
-      if (restoredRun && restoredRun !== active) show(restoredRun);
-      else if (active) { renderDetailsVisibility(); applyVisibility(); transform(); renderInspector(state.selectedId ? active.elements[state.selectedId] : undefined); }
+      if (active) { renderDetailsVisibility(); applyVisibility(); transform(); renderInspector(state.selectedId ? active.elements[state.selectedId] : undefined); }
     }
   };
   const reportRuntimeError = (message: string) => {
@@ -405,5 +461,5 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   bridge.post({ channel: 'ply-vis', version: 1, type: 'ready' });
   if (!initialEnvelopes.length) bridge.post({ channel: 'ply-vis', version: 1, type: 'request-artifact' });
 
-  return { load, getState: () => state, destroy: () => { window.removeEventListener('message', receive); window.removeEventListener('error', receiveError); window.removeEventListener('unhandledrejection', receiveRejection); container.replaceChildren(); } };
+  return { load, getState: () => state, destroy: () => { cancelTooltipTimer(); window.removeEventListener('message', receive); window.removeEventListener('error', receiveError); window.removeEventListener('unhandledrejection', receiveRejection); container.replaceChildren(); } };
 }

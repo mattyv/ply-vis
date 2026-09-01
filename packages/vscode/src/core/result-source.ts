@@ -1,14 +1,14 @@
 import { basename, dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 
 export const INDEX_RELATIVE_PATH = 'target/ply/view.json';
-export const DISCOVERY_EXCLUDED_DIRECTORIES = new Set(['.git', 'target', 'node_modules', 'build', '.gradle', '.gradle-user', '.intellijPlatform']);
+export const DISCOVERY_EXCLUDED_DIRECTORIES = new Set(['.git', '.claude', 'target', 'node_modules', 'build', '.gradle', '.gradle-user', '.intellijPlatform']);
 const WATCH_EXCLUDED_DIRECTORIES = new Set([...DISCOVERY_EXCLUDED_DIRECTORIES].filter((directory) => directory !== 'target'));
 export interface FileReader {
   readText(path: string): Promise<string>;
   exists(path: string): Promise<boolean>;
   findPlySpecs(root: string): Promise<string[]>;
 }
-export interface WorkspaceRoot { readonly name: string; readonly path: string }
+export interface WorkspaceRoot { readonly name: string; readonly path: string; readonly specPath?: string }
 export type RunOutcome = 'clean' | 'violation' | 'timeout' | 'missing_evidence' | 'narrowed_evidence';
 export interface RunIndexEntry { readonly id: string; readonly path: string; readonly completedAt: string; readonly outcome: RunOutcome }
 export interface RunIndex { readonly protocolVersion: 1; readonly currentRun: string; readonly runs: readonly RunIndexEntry[] }
@@ -106,7 +106,8 @@ export function parseVisualEnvelope(value: unknown): VisualEnvelope {
 
 function rootForSpec(workspaces: readonly WorkspaceRoot[], spec: string): WorkspaceRoot | undefined {
   const absolute = resolve(spec);
-  if (basename(absolute) !== 'ply.yaml') return undefined;
+  const specName = basename(absolute);
+  if (specName !== 'ply.yaml' && !specName.endsWith('.ply.yaml')) return undefined;
   for (const workspace of workspaces) {
     const boundary = resolve(workspace.path);
     const fromBoundary = relative(boundary, absolute);
@@ -115,6 +116,7 @@ function rootForSpec(workspaces: readonly WorkspaceRoot[], spec: string): Worksp
     if (parts.some((part) => DISCOVERY_EXCLUDED_DIRECTORIES.has(part))) return undefined;
     const path = dirname(absolute);
     const nested = relative(boundary, path);
+    if (specName !== 'ply.yaml') return { name: `${workspace.name}: ${fromBoundary}`, path, specPath: absolute };
     return { name: nested ? `${workspace.name}: ${nested}` : workspace.name, path };
   }
   return undefined;
@@ -122,7 +124,7 @@ function rootForSpec(workspaces: readonly WorkspaceRoot[], spec: string): Worksp
 
 function uniqueRoots(roots: readonly WorkspaceRoot[]): WorkspaceRoot[] {
   const unique = new Map<string, WorkspaceRoot>();
-  for (const root of roots) unique.set(root.path, root);
+  for (const root of roots) unique.set(root.specPath ?? root.path, root);
   return [...unique.values()].sort((left, right) => left.path.localeCompare(right.path));
 }
 
@@ -153,7 +155,8 @@ export function shouldHandleWorkspaceChange(workspacePath: string, changedPath: 
   if (!fromBoundary || fromBoundary === '..' || fromBoundary.startsWith(`..${sep}`) || isAbsolute(fromBoundary)) return false;
   const parts = fromBoundary.split(sep);
   if (parts.some((part) => WATCH_EXCLUDED_DIRECTORIES.has(part))) return false;
-  if (parts.at(-1) === 'ply.yaml') return !parts.some((part) => DISCOVERY_EXCLUDED_DIRECTORIES.has(part));
+  const name = parts.at(-1);
+  if (name === 'ply.yaml' || name?.endsWith('.ply.yaml')) return !parts.some((part) => DISCOVERY_EXCLUDED_DIRECTORIES.has(part));
   const target = parts.findIndex((part, index) => part === 'target' && parts[index + 1] === 'ply');
   return target >= 0 && parts.at(-1)?.endsWith('.json') === true;
 }

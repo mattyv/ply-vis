@@ -14,7 +14,7 @@ class MemoryFiles implements FileReader {
   public async exists(path: string): Promise<boolean> { this.calls.push(`exists:${path}`); return path in this.values; }
   public async findPlySpecs(root: string): Promise<string[]> {
     this.calls.push(`find:${root}`);
-    return Object.keys(this.values).filter((path) => path.startsWith(`${root}/`) && path.endsWith('/ply.yaml'));
+    return Object.keys(this.values).filter((path) => path.startsWith(`${root}/`) && (path.endsWith('/ply.yaml') || path.endsWith('.ply.yaml')));
   }
 }
 
@@ -29,6 +29,7 @@ describe('Ply result discovery', () => {
       '/repo/crates/a/ply.yaml': '',
       '/repo/services/b/ply.yaml': '',
       '/repo/.git/fixtures/ply.yaml': '',
+      '/repo/.claude/worktrees/agent/fixture.ply.yaml': '',
       '/repo/target/copied/ply.yaml': '',
       '/repo/node_modules/pkg/ply.yaml': '',
       '/repo/build/generated/ply.yaml': '',
@@ -39,6 +40,13 @@ describe('Ply result discovery', () => {
     await expect(discoverPlyRoots([{ name: 'repo', path: '/repo' }], files)).resolves.toEqual([
       { name: 'repo: crates/a', path: '/repo/crates/a' },
       { name: 'repo: services/b', path: '/repo/services/b' },
+    ]);
+  });
+  it('discovers named render-only specs as distinct selections', async () => {
+    const files = new MemoryFiles({ '/repo/vetting/001-spsc.ply.yaml': '', '/repo/vetting/002-ingest.ply.yaml': '' });
+    await expect(discoverPlyRoots([{ name: 'repo', path: '/repo' }], files)).resolves.toEqual([
+      { name: 'repo: vetting/001-spsc.ply.yaml', path: '/repo/vetting', specPath: '/repo/vetting/001-spsc.ply.yaml' },
+      { name: 'repo: vetting/002-ingest.ply.yaml', path: '/repo/vetting', specPath: '/repo/vetting/002-ingest.ply.yaml' },
     ]);
   });
   it('rejects discovered specs outside the workspace boundary', async () => {
@@ -63,9 +71,11 @@ describe('Ply result discovery', () => {
   });
   it('matches recursive spec and artifact changes without watching excluded trees or paths outside the workspace', () => {
     expect(shouldHandleWorkspaceChange('/repo', '/repo/crates/a/ply.yaml')).toBe(true);
+    expect(shouldHandleWorkspaceChange('/repo', '/repo/vetting/001-spsc.ply.yaml')).toBe(true);
     expect(shouldHandleWorkspaceChange('/repo', '/repo/crates/a/target/ply/view.json')).toBe(true);
     expect(shouldHandleWorkspaceChange('/repo', '/repo/crates/a/target/ply/views/r1/visual.json')).toBe(true);
     expect(shouldHandleWorkspaceChange('/repo', '/repo/.gradle/cache/ply.yaml')).toBe(false);
+    expect(shouldHandleWorkspaceChange('/repo', '/repo/.claude/worktrees/agent/fixture.ply.yaml')).toBe(false);
     expect(shouldHandleWorkspaceChange('/repo', '/repo/node_modules/pkg/target/ply/view.json')).toBe(false);
     expect(shouldHandleWorkspaceChange('/repo', '/repo-other/ply.yaml')).toBe(false);
   });

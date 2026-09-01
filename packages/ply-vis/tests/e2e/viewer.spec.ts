@@ -194,15 +194,14 @@ test('reports runtime errors through the versioned bridge without discarding the
   await expect(page.locator('[data-element-id="workspace"]')).toBeAttached();
 });
 
-test('selects among immutable supplied runs without drawing a graphical diff', async ({ page }) => {
+test('shows the latest supplied run without duplicating the sidebar run picker', async ({ page }) => {
   await page.evaluate(() => {
     const second = structuredClone((window as any).fixture);
     second.run.id = 'run-002'; second.run.completedAt = '2026-08-28T06:00:00Z';
     (window as any).viewer.load(second);
   });
-  await expect(page.getByLabel('Run snapshot')).toHaveValue('run-002');
-  await page.getByLabel('Run snapshot').selectOption('run-001');
-  await expect(page.getByRole('status')).toHaveText('Showing run run-001');
+  await expect(page.getByLabel('Run snapshot')).toHaveCount(0);
+  await expect(page.getByRole('status')).toHaveText('Showing run run-002');
   await expect(page.locator('[data-run-diff]')).toHaveCount(0);
 });
 

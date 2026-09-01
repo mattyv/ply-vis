@@ -4,7 +4,7 @@ import { discoverPlyRoots, type LoadState, ResultSource, shouldHandleWorkspaceCh
 import type { StateStore } from '../host/state-store';
 import type { NodeFileReader } from './vscode-adapters';
 
-export const WATCH_PATTERNS = ['**/ply.yaml', '**/target/ply/view.json', '**/target/ply/**/*.json'] as const;
+export const WATCH_PATTERNS = ['**/ply.yaml', '**/*.ply.yaml', '**/target/ply/view.json', '**/target/ply/**/*.json'] as const;
 export interface ResultListener { (root: WorkspaceRoot | undefined, state: LoadState): void }
 
 export class WorkspaceController implements vscode.Disposable {
@@ -18,6 +18,11 @@ export class WorkspaceController implements vscode.Disposable {
 
   public currentRoot(): WorkspaceRoot | undefined { return this.selected; }
   public discoveredRoots(): readonly WorkspaceRoot[] { return this.roots; }
+
+  public async selectRoot(root: WorkspaceRoot): Promise<void> {
+    this.selected = root;
+    await this.state.selectRoot(root.specPath ?? root.path);
+  }
 
   public async initialize(): Promise<void> {
     await this.discover(true);
@@ -39,8 +44,7 @@ export class WorkspaceController implements vscode.Disposable {
     const selected = this.roots.length === 1 ? this.roots[0] : await vscode.window.showQuickPick(this.roots.map((root) => ({ label: root.name, description: root.path, root })),
       { placeHolder: 'Select the Ply workspace root to inspect' }).then((item) => item?.root);
     if (!selected) return undefined;
-    this.selected = selected;
-    await this.state.selectRoot(selected.path);
+    await this.selectRoot(selected);
     await this.refresh();
     return selected;
   }
@@ -49,7 +53,7 @@ export class WorkspaceController implements vscode.Disposable {
     if (!this.selected) return undefined;
     const selected = this.selected;
     const generation = ++this.generation;
-    const loaded = await this.results.reload(selected);
+    const loaded = selected.specPath ? {} : await this.results.reload(selected);
     if (generation === this.generation && this.selected?.path === selected.path) this.listener(selected, loaded);
     return loaded;
   }
@@ -59,9 +63,9 @@ export class WorkspaceController implements vscode.Disposable {
   private async discover(useRemembered: boolean): Promise<void> {
     const candidates = (vscode.workspace.workspaceFolders ?? []).map((folder) => ({ name: folder.name, path: folder.uri.fsPath }));
     this.roots = await discoverPlyRoots(candidates, this.files, useRemembered ? this.state.rememberedSpecs() : []);
-    await this.state.rememberSpecs(this.roots.map((root) => join(root.path, 'ply.yaml')));
+    await this.state.rememberSpecs(this.roots.map((root) => root.specPath ?? join(root.path, 'ply.yaml')));
     const persisted = this.state.selectedRoot();
-    this.selected = this.roots.find((root) => root.path === persisted) ?? this.roots[0];
+    this.selected = this.roots.find((root) => (root.specPath ?? root.path) === persisted) ?? this.roots[0];
   }
 
   private schedule(): void {

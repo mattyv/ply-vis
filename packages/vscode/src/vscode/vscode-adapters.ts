@@ -18,7 +18,7 @@ export class NodeFileReader implements FileReader {
       for (const entry of entries) {
         const path = join(directory, entry.name);
         if (entry.isDirectory() && !DISCOVERY_EXCLUDED_DIRECTORIES.has(entry.name)) pending.push(path);
-        else if (entry.isFile() && entry.name === 'ply.yaml') found.push(path);
+        else if (entry.isFile() && (entry.name === 'ply.yaml' || entry.name.endsWith('.ply.yaml'))) found.push(path);
       }
     }
     return found.sort();

@@ -6,7 +6,10 @@ This project is still being built and is **extremely beta**. Its protocol, packa
 
 ## How it fits together
 
-Ply produces immutable visual evidence after a run. The LLM manages Ply runs; the IDE does not execute or supervise them. Each IDE extension observes completed artifacts, renders them with the shared viewer, and navigates back to source.
+Ply produces immutable visual evidence after a run. Each IDE extension observes
+completed artifacts, renders them with the shared viewer, and navigates back to
+source. VS Code can also start verification or directly render a named spec when
+the selected spec has no published run.
 
 The repository contains three packages:
 
@@ -20,7 +23,8 @@ Visual runs are snapshots of verification evidence, not graphical diffs. Ply Vis
 
 ## Finding Ply projects
 
-Ply Visual searches every open workspace or project recursively for `ply.yaml`.
+Ply Visual searches every open workspace or project recursively for `ply.yaml`
+and named `*.ply.yaml` files.
 It skips generated and dependency directories such as `.git`, `target`,
 `node_modules`, `build`, and Gradle caches, so monorepo packages work without
 moving their specs to the workspace root. It remembers the previous search's
@@ -35,8 +39,12 @@ The sidebar and tool window distinguish the two common first-use states:
   `target/ply/view.json` for it yet. Run
   `cargo ply verify <spec-directory> --publish-view` to publish one.
 
-The IDE extensions only observe completed artifacts. They never start or manage
-Ply runs.
+Named `*.ply.yaml` files can be rendered directly from the sidebar with
+`cargo ply render`; they do not need a Cargo project or a completed verification
+run.
+
+The JetBrains extension only observes completed artifacts. VS Code exposes an
+explicit run action; it does not start Ply automatically.
 
 In VS Code, click a completed run to reuse the current Ply Visual tab. Right-click
 the run and choose **Open in New Tab** to keep multiple visuals open.

@@ -1,32 +1,34 @@
 import * as vscode from 'vscode';
+import { execFile } from 'node:child_process';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { ResultSource, type LoadState, type WorkspaceRoot } from './core/result-source';
-import { firstUseMessage } from './core/first-use';
 import { parseViewerRequest } from './host/bridge';
 import { StateStore } from './host/state-store';
 import { PlyPanel } from './vscode/panel';
+import { RunsView } from './vscode/runs-view';
 import { SourceNavigator } from './vscode/source-navigation';
 import { NodeFileReader, VsCodeEditor } from './vscode/vscode-adapters';
 import { WorkspaceController } from './vscode/workspace-controller';
 
-class RunsView implements vscode.TreeDataProvider<vscode.TreeItem> {
-  private readonly changed = new vscode.EventEmitter<void>();
-  public readonly onDidChangeTreeData = this.changed.event;
-  private items: vscode.TreeItem[] = [new vscode.TreeItem(firstUseMessage(false))];
-  public update(root: WorkspaceRoot | undefined, state: LoadState): void {
-    const items: vscode.TreeItem[] = root ? [new vscode.TreeItem(root.name, vscode.TreeItemCollapsibleState.None)] : [];
-    if (!root) items.push(new vscode.TreeItem(firstUseMessage(false)));
-    else if (!state.snapshot && !state.error) items.push(new vscode.TreeItem(firstUseMessage(true)));
-    if (state.snapshot) {
-      const run = new vscode.TreeItem(`${state.snapshot.envelope.run.id} · ${state.snapshot.entry.outcome}`);
-      run.contextValue = 'ply.visualRun';
-      run.command = { command: 'ply.openVisual', title: 'Open Visual' };
-      items.push(run);
-    }
-    if (state.error) { const error = new vscode.TreeItem(`Error: ${state.error}`); error.tooltip = state.snapshot ? 'Showing the last complete run.' : state.error; items.push(error); }
-    this.items = items; this.changed.fire();
-  }
-  public getTreeItem(item: vscode.TreeItem): vscode.TreeItem { return item; }
-  public getChildren(): vscode.TreeItem[] { return this.items; }
+const run = promisify(execFile);
+
+function requestedRoot(target: unknown): WorkspaceRoot | undefined {
+  if (typeof target !== 'object' || target === null) return undefined;
+  const node = target as { readonly root?: unknown };
+  const candidate = (typeof node.root === 'object' && node.root !== null ? node.root : target) as Partial<WorkspaceRoot>;
+  return typeof candidate.name === 'string' && typeof candidate.path === 'string' ? candidate as WorkspaceRoot : undefined;
+}
+
+function renderedSpec(root: WorkspaceRoot, svg: string): LoadState {
+  const id = `render-${Date.now()}`;
+  const completedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const entry = { id, path: `views/${id}/visual.json`, completedAt, outcome: 'clean' } as const;
+  const envelope = {
+    protocolVersion: 1, run: { id, completedAt, root: { path: root.path }, tool: { name: 'ply', version: 'render' }, outcome: 'clean' },
+    svg, elements: {}, diagnostics: [],
+  } as const;
+  return { snapshot: { root, index: { protocolVersion: 1, currentRun: id, runs: [entry] }, entry, envelope } };
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -35,30 +37,69 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const state = new StateStore(context.workspaceState);
   const navigator = new SourceNavigator(new VsCodeEditor());
   const panel = new PlyPanel(context.extensionUri, state, navigator);
-  const runsView = new RunsView();
-  const workspace = new WorkspaceController(files, results, state, (root, load) => { runsView.update(root, load); if (root) panel.update(root, load); });
+  const runsView = new RunsView(results);
+  let workspace: WorkspaceController;
+  workspace = new WorkspaceController(files, results, state, (root, load) => {
+    runsView.update(workspace.discoveredRoots());
+    if (root) panel.update(root, load);
+  });
   context.subscriptions.push(panel, workspace, vscode.window.registerTreeDataProvider('ply.visualRuns', runsView));
   context.subscriptions.push(vscode.commands.registerCommand('ply.refreshVisual', () => workspace.refresh()));
   context.subscriptions.push(vscode.commands.registerCommand('ply.selectRoot', () => workspace.chooseRoot()));
-  const visual = async (): Promise<{ root: WorkspaceRoot; loaded: LoadState } | undefined> => {
-    const root = workspace.currentRoot() ?? await workspace.chooseRoot();
+  context.subscriptions.push(vscode.commands.registerCommand('ply.openSpec', async (target?: unknown) => {
+    const root = requestedRoot(target) ?? workspace.currentRoot() ?? await workspace.chooseRoot();
+    if (!root) return;
+    await workspace.selectRoot(root);
+    const specPath = root.specPath ?? join(root.path, 'ply.yaml');
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(specPath)));
+  }));
+
+  const renderSpec = async (target?: unknown): Promise<void> => {
+    const root = requestedRoot(target) ?? workspace.currentRoot() ?? await workspace.chooseRoot();
+    if (!root) return;
+    await workspace.selectRoot(root);
+    const specPath = root.specPath ?? join(root.path, 'ply.yaml');
+    await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Rendering ${vscode.workspace.asRelativePath(specPath)}` }, async () => {
+      try {
+        const { stdout } = await run('cargo', ['ply', 'render', specPath], { cwd: root.path, maxBuffer: 10 * 1024 * 1024 });
+        panel.show(root, renderedSpec(root, stdout));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`Ply render failed: ${message}`);
+      }
+    });
+  };
+  const runAndPublish = async (target?: unknown): Promise<void> => {
+    const root = requestedRoot(target) ?? workspace.currentRoot() ?? await workspace.chooseRoot();
+    if (!root) return;
+    if (root.specPath) { await renderSpec(root); return; }
+    await workspace.selectRoot(root);
+    const terminal = vscode.window.createTerminal({ name: 'Ply Verify', cwd: root.path });
+    terminal.show();
+    terminal.sendText('cargo ply verify . --publish-view');
+  };
+  context.subscriptions.push(vscode.commands.registerCommand('ply.runAndPublish', runAndPublish));
+  context.subscriptions.push(vscode.commands.registerCommand('ply.renderSpec', renderSpec));
+
+  const visual = async (target?: unknown): Promise<{ root: WorkspaceRoot; loaded: LoadState } | undefined> => {
+    const root = requestedRoot(target) ?? workspace.currentRoot() ?? await workspace.chooseRoot();
     if (!root) return undefined;
+    await workspace.selectRoot(root);
+    if (root.specPath) { await renderSpec(root); return undefined; }
     const loaded = await workspace.refresh() ?? results.state(root);
     return { root, loaded };
   };
-  context.subscriptions.push(vscode.commands.registerCommand('ply.openVisual', async () => {
-    const selected = await visual();
+  context.subscriptions.push(vscode.commands.registerCommand('ply.openVisual', async (target?: unknown) => {
+    const selected = await visual(target);
     if (!selected) return;
-    const { root, loaded } = selected;
-    panel.show(root, loaded);
+    panel.show(selected.root, selected.loaded);
   }));
-  context.subscriptions.push(vscode.commands.registerCommand('ply.openVisualInNewTab', async () => {
-    const selected = await visual();
+  context.subscriptions.push(vscode.commands.registerCommand('ply.openVisualInNewTab', async (target?: unknown) => {
+    const selected = await visual(target);
     if (!selected) return;
-    const { root, loaded } = selected;
-    const tab = new PlyPanel(context.extensionUri, state, navigator, `Ply Visual — ${root.name}`);
+    const tab = new PlyPanel(context.extensionUri, state, navigator, `Ply Visual — ${selected.root.name}`);
     context.subscriptions.push(tab);
-    tab.show(root, loaded);
+    tab.show(selected.root, selected.loaded);
   }));
   if (process.env.PLY_VSCODE_TEST === '1') {
     context.subscriptions.push(vscode.commands.registerCommand('ply.__testNavigate', async (message: unknown) => {

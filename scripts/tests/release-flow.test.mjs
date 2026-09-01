@@ -22,6 +22,10 @@ test('completed visual runs offer an Open in New Tab context action', () => {
   assert.ok(manifest.contributes.menus['view/item/context'].some(({ command, when }) => command === 'ply.openVisualInNewTab' && when.includes('viewItem == ply.visualRun')));
 });
 
+test('Ply can publish a visual from the extension', () => {
+  assert.ok(manifest.contributes.commands.some(({ command }) => command === 'ply.runAndPublish'));
+});
+
 test('local package and install commands are part of the product workflow', () => {
   assert.equal(workspace.scripts['package:local'], 'node scripts/package-local.mjs');
   assert.equal(workspace.scripts['install:local'], 'node scripts/install-local.mjs');
