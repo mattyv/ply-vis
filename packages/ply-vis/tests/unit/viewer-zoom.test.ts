@@ -22,4 +22,31 @@ describe('viewer framing', () => {
     expect(viewer.getState()).toMatchObject({ runId: 'new', zoom: 1, panX: 0, panY: 0 });
     viewer.destroy();
   });
+
+  it('hides buried detail when zooming out and restores it when zooming in', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    const evidence = { verdict: 'unclaimed', statuses: [], reused: false };
+    viewer.load({
+      protocolVersion: 1,
+      run: { id: 'semantic', completedAt: '2026-09-01T00:00:00Z', root: { path: '.' }, tool: { name: 'ply', version: 'render' }, outcome: 'clean' },
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><g data-element-id="workspace"><g data-element-id="component"><g data-element-id="function"><rect width="10" height="10"/></g></g></g></svg>',
+      elements: {
+        workspace: { id: 'workspace', kind: 'workspace', label: 'workspace', evidence, diagnosticIds: [] },
+        component: { id: 'component', kind: 'component', label: 'component', parentId: 'workspace', evidence, diagnosticIds: [] },
+        function: { id: 'function', kind: 'fn', label: 'function', parentId: 'component', evidence, diagnosticIds: [] },
+      }, diagnostics: [],
+    });
+    const canvas = container.querySelector<HTMLElement>('.ply-canvas')!;
+    const fn = container.querySelector('[data-element-id="function"]')!;
+
+    canvas.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1000 }));
+    expect(fn.hasAttribute('hidden')).toBe(true);
+    expect(container.querySelector('[data-element-id="component"]')!.hasAttribute('hidden')).toBe(false);
+
+    canvas.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: -1000 }));
+    expect(fn.hasAttribute('hidden')).toBe(false);
+    viewer.destroy();
+  });
 });

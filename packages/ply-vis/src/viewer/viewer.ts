@@ -78,6 +78,14 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     return false;
   }
 
+  function detailDepth(element: VisualElement): number {
+    let depth = 0; let current: VisualElement | undefined = element;
+    while (current?.parentId && current.id !== state.focusedId) { current = active?.elements[current.parentId]; depth += 1; }
+    return state.focusedId && current?.id !== state.focusedId ? Number.POSITIVE_INFINITY : depth;
+  }
+
+  const visibleDetailDepth = () => state.zoom < 0.8 ? 1 : state.zoom < 1.5 ? 2 : Number.POSITIVE_INFINITY;
+
   function renderBreadcrumbs() {
     breadcrumbs.replaceChildren();
     if (!active) return;
@@ -248,7 +256,8 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       const overlayVisible = stateClass === 'declared' || state.overlays[stateClass];
       const focusAncestor = focused ? isDescendant(focused, element.id, active.elements) : false;
       const focusVisible = !state.focusedId || element.id === state.focusedId || isDescendant(element, state.focusedId, active.elements) || focusAncestor;
-      node.toggleAttribute('hidden', !focusVisible || (!overlayVisible && !focusAncestor));
+      const detailVisible = focusAncestor || detailDepth(element) <= visibleDetailDepth();
+      node.toggleAttribute('hidden', !focusVisible || !detailVisible || (!overlayVisible && !focusAncestor));
       const classifications = [element.evidence.verdict, ...element.evidence.statuses].filter(Boolean).join(', ') || 'declared';
       node.setAttribute('role', 'button'); node.setAttribute('aria-label', `${element.kind}: ${element.label}; ${classifications}`); node.dataset.state = stateClass;
       node.classList.toggle('is-selected', element.id === state.selectedId);
@@ -358,7 +367,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       : { x: canvasRect.width / 2, y: canvasRect.height / 2 };
   }
   function setZoom(zoom: number, anchor = zoomAnchor()) {
-    setState(zoomAt(state, Math.min(4, Math.max(0.2, zoom)), anchor)); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`;
+    setState(zoomAt(state, Math.min(4, Math.max(0.2, zoom)), anchor)); applyVisibility(); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`;
   }
   function fit() {
     const svg = stage.querySelector<SVGSVGElement>('svg');
@@ -377,6 +386,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       height: targetRect.height / currentZoom,
     };
     setState(fitRect({ width: canvas.clientWidth, height: canvas.clientHeight }, content));
+    applyVisibility();
     transform();
     status.textContent = state.focusedId ? 'Focused element fitted' : 'Canvas fitted';
   }
