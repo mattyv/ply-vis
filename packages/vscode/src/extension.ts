@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { ResultSource, type LoadState, type WorkspaceRoot } from './core/result-source';
+import { loadRenderedSpec } from './core/rendered-spec';
 import { parseViewerRequest } from './host/bridge';
 import { StateStore } from './host/state-store';
 import { PlyPanel } from './vscode/panel';
@@ -18,17 +19,6 @@ function requestedRoot(target: unknown): WorkspaceRoot | undefined {
   const node = target as { readonly root?: unknown };
   const candidate = (typeof node.root === 'object' && node.root !== null ? node.root : target) as Partial<WorkspaceRoot>;
   return typeof candidate.name === 'string' && typeof candidate.path === 'string' ? candidate as WorkspaceRoot : undefined;
-}
-
-function renderedSpec(root: WorkspaceRoot, svg: string): LoadState {
-  const id = `render-${Date.now()}`;
-  const completedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const entry = { id, path: `views/${id}/visual.json`, completedAt, outcome: 'clean' } as const;
-  const envelope = {
-    protocolVersion: 1, run: { id, completedAt, root: { path: root.path }, tool: { name: 'ply', version: 'render' }, outcome: 'clean' },
-    svg, elements: {}, diagnostics: [],
-  } as const;
-  return { snapshot: { root, index: { protocolVersion: 1, currentRun: id, runs: [entry] }, entry, envelope } };
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -61,8 +51,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const specPath = root.specPath ?? join(root.path, 'ply.yaml');
     await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Rendering ${vscode.workspace.asRelativePath(specPath)}` }, async () => {
       try {
-        const { stdout } = await run('cargo', ['ply', 'render', specPath], { cwd: root.path, maxBuffer: 10 * 1024 * 1024 });
-        panel.show(root, renderedSpec(root, stdout));
+        const { stdout } = await run('cargo', ['ply', '--json', 'render', specPath], { cwd: root.path, maxBuffer: 10 * 1024 * 1024 });
+        panel.show(root, loadRenderedSpec(root, stdout));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`Ply render failed: ${message}`);

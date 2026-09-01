@@ -2,7 +2,7 @@ import { EnvelopeError, parseEnvelope, type VisualElement, type VisualEnvelope }
 import { sanitizeSvg } from '../protocol/sanitize';
 import { HOST_PROTOCOL_VERSION, isHostResponse, type HostBridge } from '../host/messages';
 import { initialViewState, updateViewState, type ViewState } from '../state/view-state';
-import { containsRect, fitRect, type Rect } from './viewport';
+import { containsRect, fitRect, zoomAt, type Rect } from './viewport';
 
 export interface Viewer { load(value: unknown): boolean; destroy(): void; getState(): ViewState }
 
@@ -345,7 +345,19 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     setState({ focusedId: id, selectedId: id, detailsHidden: !id });
     renderDetailsVisibility(); applyVisibility(); renderInspector(id ? active?.elements[id] : undefined); fit();
   }
-  function setZoom(zoom: number) { setState({ zoom: Math.min(4, Math.max(0.2, zoom)) }); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`; }
+  function zoomAnchor(): { x: number; y: number } {
+    const canvasRect = canvas.getBoundingClientRect();
+    const selected = state.selectedId
+      ? [...stage.querySelectorAll<SVGElement>('[data-element-id], [data-ply-id]')].find((node) => elementForNode(node)?.id === state.selectedId)
+      : undefined;
+    const rect = selected?.getBoundingClientRect();
+    return rect
+      ? { x: rect.left - canvasRect.left + rect.width / 2, y: rect.top - canvasRect.top + rect.height / 2 }
+      : { x: canvasRect.width / 2, y: canvasRect.height / 2 };
+  }
+  function setZoom(zoom: number, anchor = zoomAnchor()) {
+    setState(zoomAt(state, Math.min(4, Math.max(0.2, zoom)), anchor)); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`;
+  }
   function fit() {
     const svg = stage.querySelector<SVGSVGElement>('svg');
     if (!svg) return;
@@ -401,7 +413,10 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   });
   tooltip.addEventListener('wheel', (event) => event.stopPropagation());
   tooltip.addEventListener('pointerdown', (event) => event.stopPropagation());
-  canvas.addEventListener('wheel', (event) => { event.preventDefault(); setZoom(state.zoom * (event.deltaY < 0 ? 1.1 : 0.9)); }, { passive: false });
+  canvas.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect(); setZoom(state.zoom * Math.exp(-event.deltaY * 0.002), { x: event.clientX - rect.left, y: event.clientY - rect.top });
+  }, { passive: false });
   canvas.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
     drag = { x: event.clientX, y: event.clientY, panX: state.panX, panY: state.panY, pointerId: event.pointerId, moved: false };

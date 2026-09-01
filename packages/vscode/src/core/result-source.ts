@@ -16,6 +16,7 @@ export interface SourceRange { readonly file: string; readonly startLine: number
 export interface ElementEvidence { readonly verdict: string; readonly statuses: readonly string[]; readonly reused: boolean; readonly engine?: string; readonly seed?: string; readonly cases?: number }
 export interface VisualElement {
   readonly id: string; readonly kind: string; readonly label: string; readonly parentId?: string;
+  readonly declaration?: string;
   readonly source?: SourceRange; readonly evidence: ElementEvidence; readonly diagnosticIds: readonly string[];
 }
 export interface VisualDiagnostic { readonly id: string; readonly code: string; readonly severity: string; readonly message: string; readonly elementId?: string; readonly source?: SourceRange }
@@ -82,7 +83,8 @@ export function parseVisualEnvelope(value: unknown): VisualEnvelope {
       !record(value.elements) || !Array.isArray(value.diagnostics)) throw new ArtifactError('Malformed Ply visual artifact.');
   for (const [stableId, raw] of Object.entries(value.elements)) {
     if (!record(raw) || raw.id !== stableId || !nonEmpty(raw.id) || !nonEmpty(raw.kind) || !nonEmpty(raw.label) ||
-        (raw.parentId !== undefined && !nonEmpty(raw.parentId)) || !record(raw.evidence) || !nonEmpty(raw.evidence.verdict) ||
+        (raw.parentId !== undefined && !nonEmpty(raw.parentId)) || (raw.declaration !== undefined && typeof raw.declaration !== 'string') ||
+        !record(raw.evidence) || !nonEmpty(raw.evidence.verdict) ||
         !Array.isArray(raw.evidence.statuses) || !raw.evidence.statuses.every((item) => typeof item === 'string') || typeof raw.evidence.reused !== 'boolean' ||
         !Array.isArray(raw.diagnosticIds) || !raw.diagnosticIds.every((item) => typeof item === 'string')) {
       throw new ArtifactError(`Malformed visual element: ${stableId}.`);

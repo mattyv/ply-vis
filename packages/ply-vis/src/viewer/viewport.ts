@@ -43,3 +43,16 @@ export function fitRect(
     panY: viewport.height / 2 - (content.y + height / 2) * zoom,
   };
 }
+
+/** Keep one canvas point stationary while changing scale. */
+export function zoomAt(
+  transform: ViewTransform,
+  zoom: number,
+  anchor: { x: number; y: number },
+): ViewTransform {
+  return {
+    zoom,
+    panX: anchor.x - ((anchor.x - transform.panX) / transform.zoom) * zoom,
+    panY: anchor.y - ((anchor.y - transform.panY) / transform.zoom) * zoom,
+  };
+}
