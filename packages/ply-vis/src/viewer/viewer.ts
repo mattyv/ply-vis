@@ -92,7 +92,8 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     inspector.replaceChildren();
     const title = document.createElement('h2'); title.textContent = element?.label ?? 'Details'; inspector.append(title);
     if (!element || !active) { const p = document.createElement('p'); p.textContent = 'Select an item to inspect its declaration and evidence.'; inspector.append(p); return; }
-    inspector.append(section('Declaration', element.declaration ? [element.declaration] : ['No declaration text supplied.']));
+    const declaration = element.declaration?.split('\n').filter(Boolean);
+    inspector.append(section('Declaration', declaration?.length ? declaration : ['No declaration text supplied.']));
     inspector.append(section('Verdict', [element.evidence.verdict]));
     inspector.append(section('Statuses', element.evidence.statuses.length ? element.evidence.statuses : ['No statuses supplied.']));
     const evidenceDetails = Object.entries(element.evidence).filter(([key]) => !['verdict', 'statuses'].includes(key)).map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`);
