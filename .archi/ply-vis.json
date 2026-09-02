@@ -1014,7 +1014,7 @@
           "__diagram__": [
             {
               "id": "note-vsc-proposal",
-              "text": "The extension is a read-only observer in the ply-vis client monorepo. The extension is a read-only observer in the ply-vis client monorepo. Reuse Archi-Techture's extension chassis and host patterns, but no Archi diagram model or Ply semantics enter this adapter.",
+              "text": "The extension is a read-only observer in the ply-vis client monorepo. Reuse Archi-Techture's extension chassis and host patterns, but no Archi diagram model or Ply semantics enter this adapter.",
               "ts": 1787892870000
             }
           ]
@@ -1110,7 +1110,7 @@
           "__diagram__": [
             {
               "id": "note-vscseq-proposal",
-              "text": "The extension never starts Ply automatically and never infers missing source mappings. The extension never starts Ply automatically and never infers missing source mappings.",
+              "text": "The extension never starts Ply automatically and never infers missing source mappings.",
               "ts": 1787892870000
             }
           ],
