@@ -84,7 +84,20 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     return state.focusedId && current?.id !== state.focusedId ? Number.POSITIVE_INFINITY : depth;
   }
 
-  const visibleDetailDepth = () => state.zoom < 0.8 ? 1 : state.zoom < 1.5 ? 2 : Number.POSITIVE_INFINITY;
+  // The zoom at which the whole drawing last fitted the window. Detail is
+  // judged RELATIVE to this, never against an absolute number: a drawing is
+  // as big as its document, so "fitted" is 41% for a three-deep trading
+  // system and 100% for a small one. Judging against an absolute threshold
+  // meant opening the first of those hid 19 of its 26 items before the
+  // reader had touched anything -- empty boxes with arrows pointing into
+  // them. Fitting a drawing to the window is not a request to hide what is
+  // in it, so fitted is where everything shows, and folding begins only
+  // when a reader deliberately pulls back from there.
+  let fittedZoom = 1;
+  const visibleDetailDepth = () => {
+    const relative = state.zoom / (fittedZoom || 1);
+    return relative < 0.5 ? 1 : relative < 0.85 ? 2 : Number.POSITIVE_INFINITY;
+  };
 
   function renderBreadcrumbs() {
     breadcrumbs.replaceChildren();
@@ -392,6 +405,9 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       height: targetRect.height / currentZoom,
     };
     setState(fitRect({ width: canvas.clientWidth, height: canvas.clientHeight }, content));
+    // Record what "the whole thing fits" means for THIS drawing, before
+    // visibility is recomputed against it.
+    if (!state.focusedId) fittedZoom = state.zoom || 1;
     applyVisibility();
     transform();
     if (announce) status.textContent = state.focusedId ? 'Focused element fitted' : 'Canvas fitted';
