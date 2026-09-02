@@ -2,14 +2,14 @@
   "version": 1,
   "bundleId": "8d967d4e-12f9-4b3d-9a1a-6f4d5b8c2e71",
   "revision": {
-    "number": 5,
-    "updatedAt": "2026-08-28T06:49:38.000Z",
-    "summary": "Name ply-vis as the canonical client monorepo for the shared viewer and both IDE adapters"
+    "number": 6,
+    "updatedAt": "2026-09-02T12:00:00.000Z",
+    "summary": "Grounded all 8 diagrams against the code that now exists: attached real files in packages/ply-vis, packages/vscode, and packages/jetbrains; cleared proposal markers everywhere the code is built and tested; left files empty (with an explanatory comment) for the Ply-repo-only nodes in the visual-core and agent-skills views; and dropped the Proposed prefix from every diagram name."
   },
   "diagrams": [
     {
       "id": "proposed-visual-core",
-      "name": "Proposed — Ply Visual Core",
+      "name": "Ply Visual Core",
       "type": "architecture",
       "origin": "llm",
       "generation": {
@@ -23,9 +23,7 @@
           {
             "id": "core-grammar",
             "label": "Ply grammar and model",
-            "files": [
-              "crates/ply-core/src/model.rs"
-            ],
+            "files": [],
             "group": "core-existing",
             "x": 165,
             "y": 42
@@ -33,11 +31,7 @@
           {
             "id": "core-verifier",
             "label": "Verifier and result record",
-            "files": [
-              "crates/ply-cli/src/verify.rs",
-              "crates/ply-core/src/record.rs",
-              "crates/ply-core/src/diag.rs"
-            ],
+            "files": [],
             "group": "core-existing",
             "x": 42,
             "y": 203
@@ -45,51 +39,32 @@
           {
             "id": "core-svg-renderer",
             "label": "Rust SVG renderer",
-            "files": [
-              "tools/render/src/svg.rs",
-              "tools/render/src/layout.rs",
-              "tools/render/src/lib.rs",
-              "crates/ply-core/src/visual/svg.rs",
-              "crates/ply-core/src/visual/layout.rs"
-            ],
+            "files": [],
             "group": "core-portable",
-            "change": "modified",
             "x": 851,
             "y": 203
           },
           {
             "id": "core-visual-envelope",
             "label": "Versioned VisualEnvelope",
-            "files": [
-              "crates/ply-core/src/visual/mod.rs",
-              "crates/ply-core/src/callgraph.rs",
-              "crates/ply-core/src/harness.rs"
-            ],
+            "files": [],
             "group": "core-portable",
-            "change": "added",
             "x": 688,
             "y": 364
           },
           {
             "id": "core-publisher",
             "label": "Validated artifact publisher",
-            "files": [
-              "crates/ply-core/src/visual/mod.rs",
-              "crates/ply-cli/src/main.rs"
-            ],
+            "files": [],
             "group": "core-portable",
-            "change": "added",
             "x": 672,
             "y": 499
           },
           {
             "id": "core-artifact",
             "label": "Immutable visual run artifact",
-            "files": [
-              "crates/ply-core/src/visual/mod.rs"
-            ],
+            "files": [],
             "group": "core-boundary",
-            "change": "added",
             "x": 668,
             "y": 686
           },
@@ -98,7 +73,6 @@
             "label": "Editor-neutral visual clients",
             "files": [],
             "group": "core-boundary",
-            "change": "added",
             "x": 668,
             "y": 821
           }
@@ -152,7 +126,6 @@
             "from": "core-verifier",
             "to": "core-visual-envelope",
             "label": "validated evidence and diagnostics",
-            "change": "added",
             "vertices": [
               {
                 "x": 162,
@@ -175,7 +148,6 @@
             "from": "core-svg-renderer",
             "to": "core-visual-envelope",
             "label": "SVG, stable IDs, source mapping",
-            "change": "added",
             "vertices": [
               {
                 "x": 979,
@@ -198,7 +170,6 @@
             "from": "core-visual-envelope",
             "to": "core-publisher",
             "label": "strict versioned contract",
-            "change": "added",
             "vertices": [
               {
                 "x": 832,
@@ -217,7 +188,6 @@
             "from": "core-publisher",
             "to": "core-artifact",
             "label": "atomic publication",
-            "change": "added",
             "vertices": [
               {
                 "x": 832,
@@ -244,7 +214,6 @@
             "from": "core-artifact",
             "to": "core-consumers",
             "label": "watched snapshot",
-            "change": "added",
             "vertices": [
               {
                 "x": 832,
@@ -290,7 +259,7 @@
           "__diagram__": [
             {
               "id": "note-core-proposal",
-              "text": "This view is a proposed design; it is not current behavior. Ply keeps all evidence semantics in Rust. Visual clients consume a validated envelope and never interpret ply.yaml or ply.lock themselves.",
+              "text": "This is how Ply turns a finished verification run into a picture. Every box here is built and tested inside the Ply tool's own repository, a separate codebase from this one, which is why none of these boxes have a clickable file link in this project. Ply keeps all evidence semantics in Rust. Visual clients consume a validated envelope and never interpret ply.yaml or ply.lock themselves.",
               "ts": 1787892870000
             }
           ],
@@ -299,6 +268,11 @@
               "id": "note-renderer-reuse",
               "text": "Extract and extend the current YAML-to-SVG renderer. Do not fork its visual grammar into TypeScript or Kotlin.",
               "ts": 1787892870000
+            },
+            {
+              "id": "grnd-003",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Built in tools/render/src/svg.rs and crates/ply-core/src/visual/svg.rs (tools/render/src/svg.rs is now a one-line re-export of the ply-core module, so there is only one renderer). A dedicated test, tools/render/tests/visual.rs (no_evidence_preserves_the_static_renderer_byte_for_byte), proves the plain SVG report and the published visual snapshot draw the exact same picture.",
+              "ts": 1788350400003
             }
           ],
           "core-publisher": [
@@ -306,6 +280,39 @@
               "id": "note-publisher-owner",
               "text": "Ply core owns publication and discovery. The exact artifact location remains a core design question; IDE adapters must not choose it.",
               "ts": 1787892870000
+            },
+            {
+              "id": "grnd-005",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Implemented in crates/ply-core/src/visual/mod.rs. Tests there prove a run is written completely or not at all, even if the write is interrupted (index_write_failure_leaves_the_previous_index_and_no_new_run).",
+              "ts": 1788350400005
+            }
+          ],
+          "core-grammar": [
+            {
+              "id": "grnd-001",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. The grammar and model are defined in crates/ply-core/src/model.rs.",
+              "ts": 1788350400001
+            }
+          ],
+          "core-verifier": [
+            {
+              "id": "grnd-002",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. The verifier and result record are implemented in crates/ply-cli/src/verify.rs, crates/ply-core/src/record.rs, and crates/ply-core/src/diag.rs.",
+              "ts": 1788350400002
+            }
+          ],
+          "core-visual-envelope": [
+            {
+              "id": "grnd-004",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Implemented in crates/ply-core/src/visual/mod.rs. crates/ply-core/tests/visual.rs checks the version number (schema_is_camel_case_and_rejects_an_unknown_major_version), and that stable IDs and exact source locations survive a save-and-reload round trip (stable_ids_and_exact_source_locations_survive_round_trip); both tests pass.",
+              "ts": 1788350400004
+            }
+          ],
+          "core-artifact": [
+            {
+              "id": "grnd-006",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Implemented in crates/ply-core/src/visual/mod.rs. A test (retention_never_deletes_the_current_run) proves old runs are cleaned up automatically without ever deleting the run that is currently in use.",
+              "ts": 1788350400006
             }
           ]
         }
@@ -313,7 +320,7 @@
     },
     {
       "id": "proposed-agent-publication",
-      "name": "Proposed — Agent Publishes a Ply View",
+      "name": "Agent Publishes a Ply View",
       "type": "sequence",
       "origin": "llm",
       "generation": {
@@ -340,41 +347,28 @@
           {
             "id": "publish-cli",
             "label": "Ply CLI",
-            "files": [
-              "crates/ply-cli/src/main.rs",
-              "crates/ply-cli/src/verify.rs"
-            ],
-            "change": "modified",
+            "files": [],
             "x": 680,
             "y": 20
           },
           {
             "id": "publish-record",
             "label": "Verifier and ply.lock",
-            "files": [
-              "crates/ply-core/src/record.rs"
-            ],
+            "files": [],
             "x": 940,
             "y": 20
           },
           {
             "id": "publish-renderer",
             "label": "Rust visual renderer",
-            "files": [
-              "tools/render/src/svg.rs",
-              "crates/ply-core/src/visual/svg.rs"
-            ],
-            "change": "modified",
+            "files": [],
             "x": 1200,
             "y": 20
           },
           {
             "id": "publish-artifact",
             "label": "Published visual artifact",
-            "files": [
-              "crates/ply-core/src/visual/mod.rs"
-            ],
-            "change": "added",
+            "files": [],
             "x": 1460,
             "y": 20
           },
@@ -382,7 +376,6 @@
             "id": "publish-adapter",
             "label": "IDE adapter",
             "files": [],
-            "change": "added",
             "x": 1720,
             "y": 20
           },
@@ -390,7 +383,6 @@
             "id": "publish-viewer",
             "label": "ply-vis",
             "files": [],
-            "change": "added",
             "x": 1980,
             "y": 20
           }
@@ -404,8 +396,7 @@
           {
             "from": "publish-agent",
             "to": "publish-cli",
-            "label": "run Ply and request a visual artifact",
-            "change": "added"
+            "label": "run Ply and request a visual artifact"
           },
           {
             "from": "publish-cli",
@@ -420,32 +411,27 @@
           {
             "from": "publish-cli",
             "to": "publish-renderer",
-            "label": "render declared intent plus earned evidence",
-            "change": "added"
+            "label": "render declared intent plus earned evidence"
           },
           {
             "from": "publish-renderer",
             "to": "publish-artifact",
-            "label": "atomically publish VisualEnvelope",
-            "change": "added"
+            "label": "atomically publish VisualEnvelope"
           },
           {
             "from": "publish-artifact",
             "to": "publish-adapter",
-            "label": "filesystem change observed",
-            "change": "added"
+            "label": "filesystem change observed"
           },
           {
             "from": "publish-adapter",
             "to": "publish-viewer",
-            "label": "load immutable run snapshot",
-            "change": "added"
+            "label": "load immutable run snapshot"
           },
           {
             "from": "publish-viewer",
             "to": "publish-developer",
-            "label": "explore intent, evidence, gaps, and source links",
-            "change": "added"
+            "label": "explore intent, evidence, gaps, and source links"
           }
         ],
         "groups": [],
@@ -453,8 +439,50 @@
           "__diagram__": [
             {
               "id": "note-publish-proposal",
-              "text": "This view is a proposed design; it is not current behavior. The LLM owns expensive Ply execution. IDEs observe an immutable published run and never silently start verification.",
+              "text": "This is how an LLM agent publishes a finished Ply run today. The Ply CLI boxes are implemented in the separate Ply tool repository, so they carry no clickable file link here; the IDE adapter and ply-vis viewer boxes are implemented in this repository's packages. The LLM owns expensive Ply execution. IDEs observe an immutable published run and never silently start verification.",
               "ts": 1787892870000
+            }
+          ],
+          "publish-cli": [
+            {
+              "id": "grnd-007",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. The CLI entry point and its --publish-view flow are in crates/ply-cli/src/main.rs and crates/ply-cli/src/verify.rs.",
+              "ts": 1788350400007
+            }
+          ],
+          "publish-record": [
+            {
+              "id": "grnd-008",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. The verifier's stored evidence is in crates/ply-core/src/record.rs.",
+              "ts": 1788350400008
+            }
+          ],
+          "publish-renderer": [
+            {
+              "id": "grnd-009",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Implemented in tools/render/src/svg.rs and crates/ply-core/src/visual/svg.rs.",
+              "ts": 1788350400009
+            }
+          ],
+          "publish-artifact": [
+            {
+              "id": "grnd-010",
+              "text": "This lives in Ply's own codebase (crates/, tools/, and skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Implemented in crates/ply-core/src/visual/mod.rs, which writes each run as an immutable, atomically-published snapshot.",
+              "ts": 1788350400010
+            }
+          ],
+          "publish-adapter": [
+            {
+              "id": "grnd-011",
+              "text": "This box stands for either IDE adapter. VS Code's version lives in packages/vscode (see the VS Code Adapter diagram) and JetBrains' version lives in packages/jetbrains (see the JetBrains Adapter diagram) \u2014 both exist and are covered by passing tests, so no single file link fits here.",
+              "ts": 1788350400011
+            }
+          ],
+          "publish-viewer": [
+            {
+              "id": "grnd-012",
+              "text": "This is the shared ply-vis viewer package at packages/ply-vis (see the ply-vis diagram for its internal parts); it has no single file of its own, which is why this box has no file link.",
+              "ts": 1788350400012
             }
           ]
         },
@@ -463,7 +491,7 @@
     },
     {
       "id": "proposed-ply-vis",
-      "name": "Proposed — ply-vis",
+      "name": "ply-vis",
       "type": "architecture",
       "origin": "llm",
       "generation": {
@@ -477,54 +505,63 @@
           {
             "id": "vis-envelope-parser",
             "label": "VisualEnvelope parser",
-            "files": [],
+            "files": [
+              "packages/ply-vis/src/protocol/envelope.ts",
+              "packages/ply-vis/src/protocol/sanitize.ts"
+            ],
             "group": "vis-contract",
-            "change": "added",
             "x": 177.5,
             "y": 42
           },
           {
             "id": "vis-state",
             "label": "Immutable run and view state",
-            "files": [],
+            "files": [
+              "packages/ply-vis/src/state/view-state.ts"
+            ],
             "group": "vis-contract",
-            "change": "added",
             "x": 149.5,
             "y": 177
           },
           {
             "id": "vis-canvas",
             "label": "SVG canvas",
-            "files": [],
+            "files": [
+              "packages/ply-vis/src/viewer/viewer.ts",
+              "packages/ply-vis/src/viewer/viewport.ts"
+            ],
             "group": "vis-experience",
-            "change": "added",
             "x": 221.5,
             "y": 499
           },
           {
             "id": "vis-semantic-zoom",
             "label": "Semantic zoom and focus",
-            "files": [],
+            "files": [
+              "packages/ply-vis/src/viewer/viewer.ts",
+              "packages/ply-vis/src/viewer/viewport.ts"
+            ],
             "group": "vis-experience",
-            "change": "added",
             "x": 316,
             "y": 364
           },
           {
             "id": "vis-inspector",
             "label": "Evidence inspector",
-            "files": [],
+            "files": [
+              "packages/ply-vis/src/viewer/viewer.ts"
+            ],
             "group": "vis-experience",
-            "change": "added",
             "x": 189.5,
             "y": 634
           },
           {
             "id": "vis-host-bridge",
             "label": "Versioned host bridge",
-            "files": [],
+            "files": [
+              "packages/ply-vis/src/host/messages.ts"
+            ],
             "group": "vis-host",
-            "change": "added",
             "x": 177.5,
             "y": 821
           },
@@ -533,7 +570,6 @@
             "label": "Browser and IDE hosts",
             "files": [],
             "group": "vis-host",
-            "change": "added",
             "x": 177.5,
             "y": 956
           }
@@ -543,7 +579,6 @@
             "from": "vis-envelope-parser",
             "to": "vis-state",
             "label": "strict compatible snapshot",
-            "change": "added",
             "vertices": [
               {
                 "x": 309.5,
@@ -562,7 +597,6 @@
             "from": "vis-state",
             "to": "vis-canvas",
             "label": "SVG and semantic element index",
-            "change": "added",
             "vertices": [
               {
                 "x": 163,
@@ -597,7 +631,6 @@
             "from": "vis-state",
             "to": "vis-semantic-zoom",
             "label": "workspace to evidence hierarchy",
-            "change": "added",
             "vertices": [
               {
                 "x": 456,
@@ -624,7 +657,6 @@
             "from": "vis-semantic-zoom",
             "to": "vis-canvas",
             "label": "focus and detail level",
-            "change": "added",
             "vertices": [
               {
                 "x": 456,
@@ -643,7 +675,6 @@
             "from": "vis-canvas",
             "to": "vis-inspector",
             "label": "selected stable element ID",
-            "change": "added",
             "vertices": [
               {
                 "x": 309.5,
@@ -662,7 +693,6 @@
             "from": "vis-inspector",
             "to": "vis-host-bridge",
             "label": "exact source-navigation request",
-            "change": "added",
             "vertices": [
               {
                 "x": 309.5,
@@ -689,7 +719,6 @@
             "from": "vis-host-bridge",
             "to": "vis-hosts",
             "label": "typed messages only",
-            "change": "added",
             "vertices": [
               {
                 "x": 309.5,
@@ -735,7 +764,7 @@
           "__diagram__": [
             {
               "id": "note-vis-proposal",
-              "text": "This view is a proposed design; it is not current behavior. ply-vis is a separate editor-neutral package. It knows no Cargo, ply.yaml, ply.lock, workspace layout, or LLM vendor API.",
+              "text": "ply-vis is the shared viewer package (packages/ply-vis), built once and reused unchanged by the browser test harness, the VS Code extension, and the JetBrains plugin. ply-vis is a separate editor-neutral package. It knows no Cargo, ply.yaml, ply.lock, workspace layout, or LLM vendor API.",
               "ts": 1787892870000
             }
           ],
@@ -752,13 +781,20 @@
               "text": "The bridge may navigate exact source locations, persist viewer state, request an available artifact, and report readiness or errors. It cannot start verification.",
               "ts": 1787892870000
             }
+          ],
+          "vis-hosts": [
+            {
+              "id": "grnd2-001",
+              "text": "This box stands for the browser test harness (packages/ply-vis/tests/harness) plus the VS Code and JetBrains packages, each of which has its own diagram; no single file represents all three, which is why this box has no file link of its own.",
+              "ts": 1788350500001
+            }
           ]
         }
       }
     },
     {
       "id": "proposed-vscode-adapter",
-      "name": "Proposed — VS Code Adapter",
+      "name": "VS Code Adapter",
       "type": "architecture",
       "origin": "llm",
       "generation": {
@@ -772,54 +808,62 @@
           {
             "id": "vsc-discovery",
             "label": "Artifact discovery and watcher",
-            "files": [],
+            "files": [
+              "packages/vscode/src/core/result-source.ts"
+            ],
             "group": "vsc-host",
-            "change": "added",
             "x": 65,
             "y": 42
           },
           {
             "id": "vsc-panel",
             "label": "Webview panel lifecycle",
-            "files": [],
+            "files": [
+              "packages/vscode/src/vscode/panel.ts",
+              "packages/vscode/src/host/panel-controller.ts"
+            ],
             "group": "vsc-host",
-            "change": "added",
             "x": 196,
             "y": 203
           },
           {
             "id": "vsc-protocol",
             "label": "VS Code host bridge",
-            "files": [],
+            "files": [
+              "packages/vscode/src/host/bridge.ts"
+            ],
             "group": "vsc-host",
-            "change": "added",
             "x": 212,
             "y": 338
           },
           {
             "id": "vsc-source-nav",
             "label": "Exact source navigator",
-            "files": [],
+            "files": [
+              "packages/vscode/src/vscode/source-navigation.ts"
+            ],
             "group": "vsc-native",
-            "change": "added",
             "x": 42,
             "y": 525
           },
           {
             "id": "vsc-state",
             "label": "Workspace and panel state",
-            "files": [],
+            "files": [
+              "packages/vscode/src/host/state-store.ts"
+            ],
             "group": "vsc-native",
-            "change": "added",
             "x": 346,
             "y": 525
           },
           {
             "id": "vsc-bundled-vis",
             "label": "Pinned ply-vis assets",
-            "files": [],
+            "files": [
+              "packages/vscode/scripts/copy-viewer-assets.mjs",
+              "packages/vscode/media/ply-vis/index.js"
+            ],
             "group": "vsc-bundle",
-            "change": "added",
             "x": 633,
             "y": 42
           }
@@ -829,7 +873,6 @@
             "from": "vsc-discovery",
             "to": "vsc-panel",
             "label": "new complete artifact",
-            "change": "added",
             "vertices": [
               {
                 "x": 233,
@@ -852,7 +895,6 @@
             "from": "vsc-bundled-vis",
             "to": "vsc-panel",
             "label": "offline webview assets",
-            "change": "added",
             "vertices": [
               {
                 "x": 765,
@@ -875,7 +917,6 @@
             "from": "vsc-panel",
             "to": "vsc-protocol",
             "label": "typed webview messages",
-            "change": "added",
             "vertices": [
               {
                 "x": 336,
@@ -894,7 +935,6 @@
             "from": "vsc-protocol",
             "to": "vsc-source-nav",
             "label": "validated exact location",
-            "change": "added",
             "vertices": [
               {
                 "x": 178,
@@ -921,7 +961,6 @@
             "from": "vsc-protocol",
             "to": "vsc-state",
             "label": "persist view state",
-            "change": "added",
             "vertices": [
               {
                 "x": 494,
@@ -975,7 +1014,7 @@
           "__diagram__": [
             {
               "id": "note-vsc-proposal",
-              "text": "This view is a proposed design; it is not current behavior. The extension is a read-only observer in the ply-vis client monorepo. Reuse Archi-Techture's extension chassis and host patterns, but no Archi diagram model or Ply semantics enter this adapter.",
+              "text": "The extension is a read-only observer in the ply-vis client monorepo. The extension is a read-only observer in the ply-vis client monorepo. Reuse Archi-Techture's extension chassis and host patterns, but no Archi diagram model or Ply semantics enter this adapter.",
               "ts": 1787892870000
             }
           ]
@@ -984,7 +1023,7 @@
     },
     {
       "id": "proposed-vscode-interaction",
-      "name": "Proposed — VS Code Interaction",
+      "name": "VS Code Interaction",
       "type": "sequence",
       "origin": "llm",
       "generation": {
@@ -1011,16 +1050,18 @@
           {
             "id": "vscseq-extension",
             "label": "VS Code extension host",
-            "files": [],
-            "change": "added",
+            "files": [
+              "packages/vscode/src/extension.ts"
+            ],
             "x": 0,
             "y": 0
           },
           {
             "id": "vscseq-viewer",
             "label": "ply-vis webview",
-            "files": [],
-            "change": "added",
+            "files": [
+              "packages/vscode/media/ply-vis/index.js"
+            ],
             "x": 0,
             "y": 0
           },
@@ -1028,7 +1069,6 @@
             "id": "vscseq-editor",
             "label": "VS Code editor",
             "files": [],
-            "change": "added",
             "x": 0,
             "y": 0
           }
@@ -1042,32 +1082,27 @@
           {
             "from": "vscseq-artifact",
             "to": "vscseq-extension",
-            "label": "watch event",
-            "change": "added"
+            "label": "watch event"
           },
           {
             "from": "vscseq-extension",
             "to": "vscseq-viewer",
-            "label": "load compatible immutable envelope",
-            "change": "added"
+            "label": "load compatible immutable envelope"
           },
           {
             "from": "vscseq-viewer",
             "to": "vscseq-viewer",
-            "label": "zoom, focus, inspect evidence",
-            "change": "added"
+            "label": "zoom, focus, inspect evidence"
           },
           {
             "from": "vscseq-viewer",
             "to": "vscseq-extension",
-            "label": "navigate exact source location",
-            "change": "added"
+            "label": "navigate exact source location"
           },
           {
             "from": "vscseq-extension",
             "to": "vscseq-editor",
-            "label": "open file and reveal range",
-            "change": "added"
+            "label": "open file and reveal range"
           }
         ],
         "groups": [],
@@ -1075,8 +1110,15 @@
           "__diagram__": [
             {
               "id": "note-vscseq-proposal",
-              "text": "This view is a proposed design; it is not current behavior. The extension never starts Ply automatically and never infers missing source mappings.",
+              "text": "The extension never starts Ply automatically and never infers missing source mappings. The extension never starts Ply automatically and never infers missing source mappings.",
               "ts": 1787892870000
+            }
+          ],
+          "vscseq-artifact": [
+            {
+              "id": "grnd2-002",
+              "text": "Produced by the Ply CLI in the separate Ply tool repository, so this box has no clickable file link in this repository.",
+              "ts": 1788350500002
             }
           ]
         }
@@ -1084,7 +1126,7 @@
     },
     {
       "id": "proposed-jetbrains-adapter",
-      "name": "Proposed — JetBrains Adapter",
+      "name": "JetBrains Adapter",
       "type": "architecture",
       "origin": "llm",
       "generation": {
@@ -1098,54 +1140,71 @@
           {
             "id": "jb-discovery",
             "label": "Artifact discovery and watcher",
-            "files": [],
+            "files": [
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyArtifactDiscovery.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyRunIndex.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyWatchPaths.kt"
+            ],
             "group": "jb-host",
-            "change": "added",
             "x": 79,
             "y": 42
           },
           {
             "id": "jb-tool-window",
             "label": "Tool window and JCEF lifecycle",
-            "files": [],
+            "files": [
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyToolWindowFactory.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyToolWindowPanel.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/OpenPlyToolWindowAction.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyStartupActivity.kt"
+            ],
             "group": "jb-host",
-            "change": "added",
             "x": 176,
             "y": 203
           },
           {
             "id": "jb-protocol",
             "label": "JCEF host bridge",
-            "files": [],
+            "files": [
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyHostMessage.kt"
+            ],
             "group": "jb-host",
-            "change": "added",
             "x": 232,
             "y": 338
           },
           {
             "id": "jb-source-nav",
             "label": "Exact source navigator",
-            "files": [],
+            "files": [
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlySourceNavigator.kt"
+            ],
             "group": "jb-native",
-            "change": "added",
             "x": 42,
             "y": 525
           },
           {
             "id": "jb-state",
             "label": "Project and tool-window state",
-            "files": [],
+            "files": [
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyProjectService.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyViewStateStore.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyDiscoveryStateStore.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyFirstUseState.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyArtifactState.kt"
+            ],
             "group": "jb-native",
-            "change": "added",
             "x": 346,
             "y": 525
           },
           {
             "id": "jb-bundled-vis",
             "label": "Pinned ply-vis assets",
-            "files": [],
+            "files": [
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyViewerAssets.kt",
+              "packages/jetbrains/build.gradle.kts",
+              "packages/jetbrains/src/main/resources/viewer-shell.html"
+            ],
             "group": "jb-bundle",
-            "change": "added",
             "x": 663,
             "y": 42
           }
@@ -1155,7 +1214,6 @@
             "from": "jb-discovery",
             "to": "jb-tool-window",
             "label": "new complete artifact",
-            "change": "added",
             "vertices": [
               {
                 "x": 247,
@@ -1178,7 +1236,6 @@
             "from": "jb-bundled-vis",
             "to": "jb-tool-window",
             "label": "offline JCEF assets",
-            "change": "added",
             "vertices": [
               {
                 "x": 795,
@@ -1201,7 +1258,6 @@
             "from": "jb-tool-window",
             "to": "jb-protocol",
             "label": "typed JCEF messages",
-            "change": "added",
             "vertices": [
               {
                 "x": 344,
@@ -1220,7 +1276,6 @@
             "from": "jb-protocol",
             "to": "jb-source-nav",
             "label": "validated exact location",
-            "change": "added",
             "vertices": [
               {
                 "x": 178,
@@ -1247,7 +1302,6 @@
             "from": "jb-protocol",
             "to": "jb-state",
             "label": "persist view state",
-            "change": "added",
             "vertices": [
               {
                 "x": 510,
@@ -1301,7 +1355,7 @@
           "__diagram__": [
             {
               "id": "note-jb-proposal",
-              "text": "This view is a proposed design; it is not current behavior. The target is a Kotlin IntelliJ Platform plugin tested first in RustRover. The shared experience remains in ply-vis; this adapter owns only native IDE integration.",
+              "text": "The target is a Kotlin IntelliJ Platform plugin tested first in RustRover. The shared experience remains in ply-vis; this adapter owns only native IDE integration. Kotlin unit tests (35 tests) cover this package; a live RustRover smoke run is scripted, but the most recent attempt was blocked by RustRover license activation before JCEF started, so that end-to-end path is still unconfirmed live. The target is a Kotlin IntelliJ Platform plugin tested first in RustRover. The shared experience remains in ply-vis; this adapter owns only native IDE integration.",
               "ts": 1787892870000
             }
           ]
@@ -1310,7 +1364,7 @@
     },
     {
       "id": "proposed-jetbrains-interaction",
-      "name": "Proposed — JetBrains Interaction",
+      "name": "JetBrains Interaction",
       "type": "sequence",
       "origin": "llm",
       "generation": {
@@ -1337,16 +1391,20 @@
           {
             "id": "jbseq-plugin",
             "label": "JetBrains plugin host",
-            "files": [],
-            "change": "added",
+            "files": [
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyStartupActivity.kt",
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyToolWindowFactory.kt"
+            ],
             "x": 0,
             "y": 0
           },
           {
             "id": "jbseq-viewer",
             "label": "ply-vis JCEF view",
-            "files": [],
-            "change": "added",
+            "files": [
+              "packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyViewerAssets.kt",
+              "packages/jetbrains/src/main/resources/viewer-shell.html"
+            ],
             "x": 0,
             "y": 0
           },
@@ -1354,7 +1412,6 @@
             "id": "jbseq-editor",
             "label": "JetBrains editor",
             "files": [],
-            "change": "added",
             "x": 0,
             "y": 0
           }
@@ -1368,32 +1425,27 @@
           {
             "from": "jbseq-artifact",
             "to": "jbseq-plugin",
-            "label": "watch event",
-            "change": "added"
+            "label": "watch event"
           },
           {
             "from": "jbseq-plugin",
             "to": "jbseq-viewer",
-            "label": "load compatible immutable envelope",
-            "change": "added"
+            "label": "load compatible immutable envelope"
           },
           {
             "from": "jbseq-viewer",
             "to": "jbseq-viewer",
-            "label": "zoom, focus, inspect evidence",
-            "change": "added"
+            "label": "zoom, focus, inspect evidence"
           },
           {
             "from": "jbseq-viewer",
             "to": "jbseq-plugin",
-            "label": "navigate exact source location",
-            "change": "added"
+            "label": "navigate exact source location"
           },
           {
             "from": "jbseq-plugin",
             "to": "jbseq-editor",
-            "label": "open virtual file and reveal range",
-            "change": "added"
+            "label": "open virtual file and reveal range"
           }
         ],
         "groups": [],
@@ -1401,8 +1453,15 @@
           "__diagram__": [
             {
               "id": "note-jbseq-proposal",
-              "text": "This view is a proposed design; it is not current behavior. Playwright drives the live JCEF surface over CDP; Kotlin tests cover native source navigation and project-service behavior.",
+              "text": "Playwright drives the live JCEF surface over CDP; Kotlin tests cover native source navigation and project-service behavior. The live CDP smoke run is scripted, but the most recent attempt was blocked by RustRover license activation before JCEF started, so this exact interaction is unit-tested but not yet confirmed against a live IDE. Playwright drives the live JCEF surface over CDP; Kotlin tests cover native source navigation and project-service behavior.",
               "ts": 1787892870000
+            }
+          ],
+          "jbseq-artifact": [
+            {
+              "id": "grnd2-003",
+              "text": "Produced by the Ply CLI in the separate Ply tool repository, so this box has no clickable file link in this repository.",
+              "ts": 1788350500003
             }
           ]
         }
@@ -1410,7 +1469,7 @@
     },
     {
       "id": "proposed-agent-skills",
-      "name": "Proposed — LLM Skills",
+      "name": "LLM Skills",
       "type": "architecture",
       "origin": "llm",
       "generation": {
@@ -1424,69 +1483,48 @@
           {
             "id": "skills-trigger",
             "label": "Covered implementation change",
-            "files": [
-              "skills/ply-verify/SKILL.md"
-            ],
+            "files": [],
             "group": "skills-agent",
-            "change": "added",
             "x": 548,
             "y": 42
           },
           {
             "id": "skills-verify",
             "label": "ply-verify skill",
-            "files": [
-              "skills/ply-verify/SKILL.md",
-              "skills/ply-verify/agents/openai.yaml"
-            ],
+            "files": [],
             "group": "skills-agent",
-            "change": "added",
             "x": 600,
             "y": 177
           },
           {
             "id": "skills-review",
             "label": "ply-review skill",
-            "files": [
-              "skills/ply-review/SKILL.md",
-              "skills/ply-review/agents/openai.yaml"
-            ],
+            "files": [],
             "group": "skills-agent",
-            "change": "added",
             "x": 419,
             "y": 634
           },
           {
             "id": "skills-cli",
             "label": "Public Ply CLI",
-            "files": [
-              "crates/ply-cli/src/main.rs",
-              "crates/ply-cli/src/verify.rs"
-            ],
+            "files": [],
             "group": "skills-core",
-            "change": "modified",
             "x": 70,
             "y": 338
           },
           {
             "id": "skills-envelope",
             "label": "Published VisualEnvelope",
-            "files": [
-              "skills/ply-review/SKILL.md"
-            ],
+            "files": [],
             "group": "skills-core",
-            "change": "added",
             "x": 42,
             "y": 473
           },
           {
             "id": "skills-developer",
             "label": "Developer approval boundary",
-            "files": [
-              "skills/ply-verify/SKILL.md"
-            ],
+            "files": [],
             "group": "skills-human",
-            "change": "added",
             "x": 571.5,
             "y": 821
           }
@@ -1496,7 +1534,6 @@
             "from": "skills-trigger",
             "to": "skills-verify",
             "label": "invoke before claiming completion",
-            "change": "added",
             "vertices": [
               {
                 "x": 712,
@@ -1515,7 +1552,6 @@
             "from": "skills-verify",
             "to": "skills-cli",
             "label": "select scope and run public commands",
-            "change": "added",
             "vertices": [
               {
                 "x": 547,
@@ -1538,7 +1574,6 @@
             "from": "skills-cli",
             "to": "skills-envelope",
             "label": "validate and publish completed run",
-            "change": "added",
             "vertices": [
               {
                 "x": 186,
@@ -1557,7 +1592,6 @@
             "from": "skills-envelope",
             "to": "skills-review",
             "label": "public evidence and diagnostics",
-            "change": "added",
             "vertices": [
               {
                 "x": 186,
@@ -1580,7 +1614,6 @@
             "from": "skills-review",
             "to": "skills-developer",
             "label": "explain evidence, gaps, and source links",
-            "change": "added",
             "vertices": [
               {
                 "x": 531,
@@ -1607,7 +1640,6 @@
             "from": "skills-verify",
             "to": "skills-developer",
             "label": "request approval before weakening intent",
-            "change": "added",
             "vertices": [
               {
                 "x": 718,
@@ -1666,7 +1698,6 @@
             "from": "skills-developer",
             "to": "skills-verify",
             "label": "approve or reject spec-level change",
-            "change": "added",
             "vertices": [
               {
                 "x": 1052,
@@ -1752,7 +1783,7 @@
           "__diagram__": [
             {
               "id": "note-skills-proposal",
-              "text": "This view is a proposed design; it is not current behavior. Skills orchestrate public Ply commands and explain public results. They cannot parse ply.lock, construct VisualEnvelope files, weaken intent silently, or become a second verifier.",
+              "text": "The ply-verify and ply-review skills described here live in the separate Ply tool repository under skills/, not in this ply-vis repository, so none of these boxes have a clickable file link here. Skills orchestrate public Ply commands and explain public results. Skills orchestrate public Ply commands and explain public results. They cannot parse ply.lock, construct VisualEnvelope files, weaken intent silently, or become a second verifier.",
               "ts": 1787893560000
             }
           ],
@@ -1761,6 +1792,11 @@
               "id": "note-skill-verify-boundary",
               "text": "The skill may repair implementation code and rerun Ply. It stops for developer approval before changing architecture intent, contracts, declared checks, or evidence requirements.",
               "ts": 1787893560000
+            },
+            {
+              "id": "grnd2-005",
+              "text": "This lives in Ply's own codebase (skills/ and tests/skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Documented in skills/ply-verify/SKILL.md. Its six named result scenarios (clean, violation, missing evidence, narrowed evidence, timeout, internal tool error) are each checked by tests/skills/test_skill_contracts.py against real fixtures (tests/skills/fixtures/verify-results.json), and all 9 tests in that file currently pass.",
+              "ts": 1788350500005
             }
           ],
           "skills-cli": [
@@ -1768,6 +1804,39 @@
               "id": "note-skill-cli-authority",
               "text": "Atomic publication, discovery, retention, cleanup, fingerprints, verdicts, and SVG generation remain implemented and enforced by Ply core and its CLI.",
               "ts": 1787893560000
+            },
+            {
+              "id": "grnd2-007",
+              "text": "This lives in Ply's own codebase (skills/ and tests/skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. The commands these skills call are implemented in crates/ply-cli/src/main.rs and crates/ply-cli/src/verify.rs.",
+              "ts": 1788350500007
+            }
+          ],
+          "skills-trigger": [
+            {
+              "id": "grnd2-004",
+              "text": "This lives in Ply's own codebase (skills/ and tests/skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. ply-verify's own instructions (skills/ply-verify/SKILL.md) describe when an implementation agent must run it.",
+              "ts": 1788350500004
+            }
+          ],
+          "skills-review": [
+            {
+              "id": "grnd2-006",
+              "text": "This lives in Ply's own codebase (skills/ and tests/skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Documented in skills/ply-review/SKILL.md and checked by the same passing test file, tests/skills/test_skill_contracts.py.",
+              "ts": 1788350500006
+            }
+          ],
+          "skills-envelope": [
+            {
+              "id": "grnd2-008",
+              "text": "This lives in Ply's own codebase (skills/ and tests/skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. Produced by crates/ply-core/src/visual/mod.rs; skills/ply-review/SKILL.md documents how ply-review reads it.",
+              "ts": 1788350500008
+            }
+          ],
+          "skills-developer": [
+            {
+              "id": "grnd2-009",
+              "text": "This lives in Ply's own codebase (skills/ and tests/skills/ live in /Users/matthew/Code/Ply, a separate git repository from ply-vis), not in this ply-vis repository, so there is no clickable file link here. The approval boundary is documented as a Change authority table in both skills/ply-verify/SKILL.md and skills/ply-review/SKILL.md, and tests/skills/test_skill_contracts.py asserts that table's values.",
+              "ts": 1788350500009
             }
           ]
         }
@@ -2129,7 +2198,7 @@
               "status": "inconclusive",
               "summary": "The ply-vis viewer application (keyboard nav, focus states, ARIA labels, colour-independent states, text scaling, reduced motion) does not exist in this repository. It is a separate project referenced only as an external link; this repo contains no packages/ply-vis, no UI components, and no accessibility-related code or tests to inspect.",
               "evidence": [
-                "README.md:169-175 — links to https://github.com/mattyv/ply-vis as 'the separate Ply Visual project'",
+                "README.md:169-175 \u2014 links to https://github.com/mattyv/ply-vis as 'the separate Ply Visual project'",
                 "No matches for packages/ply-vis or any client-app directory in this repo",
                 "crates/ply-core/src/visual/mod.rs is the server-side envelope publisher (Rust), not the browser/IDE viewer"
               ]
@@ -2139,8 +2208,8 @@
               "status": "inconclusive",
               "summary": "CSP configuration and envelope-parser error/fallback handling belong to the ply-vis client application, which is not present in this repository. This repo's visual module only writes the envelope to disk (crates/ply-core/src/visual/mod.rs); it defines no CSP, no browser-side parser, and no 'retain last good snapshot on malformed envelope' logic.",
               "evidence": [
-                "crates/ply-core/src/visual/mod.rs:1-32 — VisualEnvelopeError and publication logic are producer-side only (JSON serialize/write), no CSP or client parsing",
-                "README.md:169-175 — confirms the consuming viewer is a separate repository",
+                "crates/ply-core/src/visual/mod.rs:1-32 \u2014 VisualEnvelopeError and publication logic are producer-side only (JSON serialize/write), no CSP or client parsing",
+                "README.md:169-175 \u2014 confirms the consuming viewer is a separate repository",
                 "No CSP meta/header, no packages/ply-vis, no host-bridge or webview code found anywhere in this repo"
               ]
             }
@@ -2637,7 +2706,7 @@
             {
               "criterionId": "skills-verify-scenarios",
               "status": "inconclusive",
-              "summary": "SKILL.md documents a Result policy table covering all six named outcomes with correct completion semantics, and a static test asserts that table's text, but nothing in the repo actually exercises ply-verify against clean/violation/missing_evidence/narrowed_evidence/timeout/internal_tool_error fixtures to prove runtime behavior — tests/skills/test_skill_contracts.py only regex-parses the markdown table, it never invokes cargo ply or feeds it fixture JSON.",
+              "summary": "SKILL.md documents a Result policy table covering all six named outcomes with correct completion semantics, and a static test asserts that table's text, but nothing in the repo actually exercises ply-verify against clean/violation/missing_evidence/narrowed_evidence/timeout/internal_tool_error fixtures to prove runtime behavior \u2014 tests/skills/test_skill_contracts.py only regex-parses the markdown table, it never invokes cargo ply or feeds it fixture JSON.",
               "evidence": [
                 "skills/ply-verify/SKILL.md:37-48 (Result policy table)",
                 "tests/skills/test_skill_contracts.py:34-47 (test_result_policy_never_calls_incomplete_evidence_complete only parses markdown table text)",
@@ -2718,7 +2787,7 @@
             {
               "criterionId": "skills-boundary-review",
               "status": "passed",
-              "summary": "skills/ contains only SKILL.md prompt text and thin openai.yaml interface metadata (display name/prompt) for both skills — no code implementing an artifact serializer, ply.lock parser, verdict classifier, retention logic, or IDE-specific integration. Both SKILL.md files explicitly forbid reading ply.lock and reproducing verdict/serializer logic.",
+              "summary": "skills/ contains only SKILL.md prompt text and thin openai.yaml interface metadata (display name/prompt) for both skills \u2014 no code implementing an artifact serializer, ply.lock parser, verdict classifier, retention logic, or IDE-specific integration. Both SKILL.md files explicitly forbid reading ply.lock and reproducing verdict/serializer logic.",
               "evidence": [
                 "skills/ply-verify/SKILL.md, skills/ply-verify/agents/openai.yaml",
                 "skills/ply-review/SKILL.md, skills/ply-review/agents/openai.yaml",
@@ -2781,5 +2850,6 @@
         }
       ]
     }
-  ]
+  ],
+  "sourceFolder": "/Users/matthew/Code/ply-vis"
 }
