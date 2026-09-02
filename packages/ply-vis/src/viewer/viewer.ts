@@ -14,6 +14,9 @@ const html = `
       <div class="ply-tools" role="group" aria-label="Canvas controls">
         ${iconButton('Zoom out', '−')}${iconButton('Zoom in', '+')}${iconButton('Fit canvas', 'Fit')}
       </div>
+      <fieldset><legend>Detail</legend>
+        <label><input type="checkbox" data-fold-detail checked> Fold detail when zoomed out</label>
+      </fieldset>
       <fieldset><legend>Overlays</legend>
         <label><input type="checkbox" data-overlay="earned" checked> Earned</label>
         <label><input type="checkbox" data-overlay="gap" checked> Gap</label>
@@ -84,20 +87,18 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     return state.focusedId && current?.id !== state.focusedId ? Number.POSITIVE_INFINITY : depth;
   }
 
-  // The zoom at which the whole drawing last fitted the window. Detail is
-  // judged RELATIVE to this, never against an absolute number: a drawing is
-  // as big as its document, so "fitted" is 41% for a three-deep trading
-  // system and 100% for a small one. Judging against an absolute threshold
-  // meant opening the first of those hid 19 of its 26 items before the
-  // reader had touched anything -- empty boxes with arrows pointing into
-  // them. Fitting a drawing to the window is not a request to hide what is
-  // in it, so fitted is where everything shows, and folding begins only
-  // when a reader deliberately pulls back from there.
-  let fittedZoom = 1;
-  const visibleDetailDepth = () => {
-    const relative = state.zoom / (fittedZoom || 1);
-    return relative < 0.5 ? 1 : relative < 0.85 ? 2 : Number.POSITIVE_INFINITY;
-  };
+  // Judged by apparent size, which is what legibility actually depends on:
+  // below about 80% the smallest text in a Ply drawing stops being readable,
+  // so continuing to draw it is noise rather than information. Briefly
+  // (2026-09-02) this was made relative to the fitted zoom instead, to stop
+  // a large document opening as empty boxes -- that traded one problem for a
+  // worse one, showing every reader unreadable text by default. The empty
+  // boxes are a separate defect with its own fix: a folded drawing should be
+  // re-rendered at that depth, which Ply already does (`render --depth`),
+  // rather than being the full drawing with holes in it.
+  const visibleDetailDepth = () =>
+    !state.foldDetail ? Number.POSITIVE_INFINITY
+      : state.zoom < 0.8 ? 1 : state.zoom < 1.5 ? 2 : Number.POSITIVE_INFINITY;
 
   function renderBreadcrumbs() {
     breadcrumbs.replaceChildren();
@@ -407,7 +408,6 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     setState(fitRect({ width: canvas.clientWidth, height: canvas.clientHeight }, content));
     // Record what "the whole thing fits" means for THIS drawing, before
     // visibility is recomputed against it.
-    if (!state.focusedId) fittedZoom = state.zoom || 1;
     applyVisibility();
     transform();
     if (announce) status.textContent = state.focusedId ? 'Focused element fitted' : 'Canvas fitted';
@@ -418,6 +418,13 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   root.querySelector('[aria-label="Fit canvas"]')!.addEventListener('click', () => fit());
   inspectorToggle.addEventListener('click', () => setDetailsHidden(!state.detailsHidden));
   root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => input.addEventListener('change', () => { const key = input.dataset.overlay as 'earned' | 'gap' | 'violation'; setState({ overlays: { ...state.overlays, [key]: input.checked } }); applyVisibility(); }));
+  root.querySelector<HTMLInputElement>('[data-fold-detail]')!.addEventListener('change', (event) => {
+    setState({ foldDetail: (event.target as HTMLInputElement).checked });
+    applyVisibility();
+    status.textContent = state.foldDetail
+      ? 'Detail folds away as you zoom out'
+      : 'Detail stays on screen at every zoom';
+  });
   breadcrumbs.addEventListener('click', (event) => { const target = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-focus-id]'); if (target) focus(target.dataset.focusId || undefined); });
   stage.addEventListener('click', (event) => {
     if (performance.now() < suppressClickUntil) return;
@@ -494,6 +501,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     else {
       state = updateViewState(state, event.data.state);
       root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => { input.checked = state.overlays[input.dataset.overlay as keyof ViewState['overlays']]; });
+      root.querySelector<HTMLInputElement>('[data-fold-detail]')!.checked = state.foldDetail;
       if (active) { renderDetailsVisibility(); applyVisibility(); transform(); renderInspector(state.selectedId ? active.elements[state.selectedId] : undefined); }
     }
   };

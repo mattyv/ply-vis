@@ -1,7 +1,7 @@
-const Ze = 1;
+const Xe = 1;
 class v extends Error {
 }
-const E = (t) => typeof t == "object" && t !== null && !Array.isArray(t), B = (t, o, f = []) => {
+const E = (t) => typeof t == "object" && t !== null && !Array.isArray(t), Y = (t, o, f = []) => {
   const u = /* @__PURE__ */ new Set([...o, ...f]);
   return o.every((p) => p in t) && Object.keys(t).every((p) => u.has(p));
 }, G = (t) => Array.isArray(t) && t.every((o) => typeof o == "string");
@@ -11,20 +11,20 @@ function K(t) {
   if (E(t)) return Object.freeze(Object.fromEntries(Object.entries(t).map(([o, f]) => [o, K(f)])));
   throw new v("Evidence contains a non-JSON value");
 }
-function pe(t) {
+function fe(t) {
   if (t !== void 0) {
-    if (!E(t) || !B(t, ["file", "startLine", "startColumn", "endLine", "endColumn"])) throw new v("Invalid source location");
+    if (!E(t) || !Y(t, ["file", "startLine", "startColumn", "endLine", "endColumn"])) throw new v("Invalid source location");
     if (typeof t.file != "string" || !t.file || t.file.startsWith("/") || t.file.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(t.file) || t.file.split(/[\\/]/).some((o) => o === ".." || o === ".")) throw new v("Invalid source location");
     for (const o of ["startLine", "startColumn", "endLine", "endColumn"]) if (!Number.isInteger(t[o]) || t[o] < 0) throw new v("Invalid source location");
     if (t.endLine < t.startLine || t.endLine === t.startLine && t.endColumn < t.startColumn) throw new v("Invalid source range");
     return Object.freeze({ file: t.file, startLine: t.startLine, startColumn: t.startColumn, endLine: t.endLine, endColumn: t.endColumn });
   }
 }
-function Ce(t) {
-  if (!E(t) || !B(t, ["protocolVersion", "run", "svg", "elements", "diagnostics"])) throw new v("Invalid visual envelope");
+function Le(t) {
+  if (!E(t) || !Y(t, ["protocolVersion", "run", "svg", "elements", "diagnostics"])) throw new v("Invalid visual envelope");
   if (t.protocolVersion !== 1) throw new v(`Unsupported visual protocol version: ${String(t.protocolVersion)}`);
   const o = /* @__PURE__ */ new Set(["clean", "violation", "timeout", "missing_evidence", "narrowed_evidence"]);
-  if (!E(t.run) || !B(t.run, ["id", "completedAt", "root", "tool", "outcome"]) || typeof t.run.id != "string" || !/^(?!\.{1,2}$)[A-Za-z0-9._-]{1,128}$/.test(t.run.id) || typeof t.run.completedAt != "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(t.run.completedAt) || Number.isNaN(Date.parse(t.run.completedAt)) || !E(t.run.root) || !B(t.run.root, ["path"]) || typeof t.run.root.path != "string" || !t.run.root.path || !E(t.run.tool) || !B(t.run.tool, ["name", "version"]) || typeof t.run.tool.name != "string" || !t.run.tool.name || typeof t.run.tool.version != "string" || !t.run.tool.version || !o.has(t.run.outcome)) throw new v("Invalid run metadata");
+  if (!E(t.run) || !Y(t.run, ["id", "completedAt", "root", "tool", "outcome"]) || typeof t.run.id != "string" || !/^(?!\.{1,2}$)[A-Za-z0-9._-]{1,128}$/.test(t.run.id) || typeof t.run.completedAt != "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(t.run.completedAt) || Number.isNaN(Date.parse(t.run.completedAt)) || !E(t.run.root) || !Y(t.run.root, ["path"]) || typeof t.run.root.path != "string" || !t.run.root.path || !E(t.run.tool) || !Y(t.run.tool, ["name", "version"]) || typeof t.run.tool.name != "string" || !t.run.tool.name || typeof t.run.tool.version != "string" || !t.run.tool.version || !o.has(t.run.outcome)) throw new v("Invalid run metadata");
   if (typeof t.svg != "string" || !t.svg.trim()) throw new v("Invalid SVG");
   if (!E(t.elements)) throw new v("Invalid element index");
   const f = {};
@@ -32,22 +32,22 @@ function Ce(t) {
     if (!E(a) || !["id", "kind", "label", "evidence", "diagnosticIds"].every((w) => w in a) || !E(a.evidence)) throw new v(`Invalid element: ${s}`);
     if (a.id !== s || typeof a.id != "string" || !a.id || typeof a.kind != "string" || !a.kind || typeof a.label != "string" || !a.label || typeof a.evidence.verdict != "string" || !G(a.evidence.statuses) || typeof a.evidence.reused != "boolean" || !G(a.diagnosticIds) || a.parentId !== void 0 && typeof a.parentId != "string" || a.declaration !== void 0 && typeof a.declaration != "string" || a.limitations !== void 0 && !G(a.limitations)) throw new v(`Invalid element: ${s}`);
     const g = K(a.evidence);
-    f[s] = Object.freeze({ id: s, kind: a.kind, label: a.label, evidence: g, diagnosticIds: Object.freeze([...a.diagnosticIds]), ...a.parentId === void 0 ? {} : { parentId: a.parentId }, ...a.declaration === void 0 ? {} : { declaration: a.declaration }, ...a.limitations === void 0 ? {} : { limitations: Object.freeze([...a.limitations]) }, ...a.source === void 0 ? {} : { source: pe(a.source) } });
+    f[s] = Object.freeze({ id: s, kind: a.kind, label: a.label, evidence: g, diagnosticIds: Object.freeze([...a.diagnosticIds]), ...a.parentId === void 0 ? {} : { parentId: a.parentId }, ...a.declaration === void 0 ? {} : { declaration: a.declaration }, ...a.limitations === void 0 ? {} : { limitations: Object.freeze([...a.limitations]) }, ...a.source === void 0 ? {} : { source: fe(a.source) } });
   }
   for (const s of Object.values(f)) if (s.parentId && !f[s.parentId]) throw new v(`Unknown parent: ${s.parentId}`);
   if (!Array.isArray(t.diagnostics)) throw new v("Invalid diagnostics");
   const u = [], p = /* @__PURE__ */ new Set();
   for (const s of t.diagnostics) {
     if (!E(s) || typeof s.id != "string" || !s.id || p.has(s.id) || typeof s.code != "string" || !s.code || typeof s.severity != "string" || !s.severity || typeof s.message != "string" || !s.message || s.elementId !== void 0 && typeof s.elementId != "string") throw new v("Invalid diagnostic");
-    p.add(s.id), u.push(Object.freeze({ id: s.id, code: s.code, severity: s.severity, message: s.message, ...s.elementId === void 0 ? {} : { elementId: s.elementId }, ...s.source === void 0 ? {} : { source: pe(s.source) } }));
+    p.add(s.id), u.push(Object.freeze({ id: s.id, code: s.code, severity: s.severity, message: s.message, ...s.elementId === void 0 ? {} : { elementId: s.elementId }, ...s.source === void 0 ? {} : { source: fe(s.source) } }));
   }
   for (const s of Object.values(f)) for (const a of s.diagnosticIds ?? []) if (!p.has(a)) throw new v(`Unknown diagnostic: ${a}`);
   for (const s of u) if (s.elementId && !f[s.elementId]) throw new v(`Unknown diagnostic element: ${s.elementId}`);
   return Object.freeze({ protocolVersion: 1, run: Object.freeze({ id: t.run.id, completedAt: t.run.completedAt, root: Object.freeze({ path: t.run.root.path }), tool: Object.freeze({ name: t.run.tool.name, version: t.run.tool.version }), outcome: t.run.outcome }), svg: t.svg, elements: Object.freeze(f), diagnostics: Object.freeze(u) });
 }
-const ke = /* @__PURE__ */ new Set(["script", "foreignobject", "iframe", "object", "embed", "audio", "video", "animate", "animatemotion", "animatetransform", "set"]), $e = /* @__PURE__ */ new Set(["href", "xlink:href", "src"]), Oe = /^(?:[.#][A-Za-z_][\w-]*|[A-Za-z][\w-]*)(?:\s+(?:[.#][A-Za-z_][\w-]*|[A-Za-z][\w-]*))*$/, ue = /^(?:none|#[0-9a-f]{3,8}|url\(#[A-Za-z_][\w:.-]*\))$/i, Te = {
-  fill: ue,
-  stroke: ue,
+const Ce = /* @__PURE__ */ new Set(["script", "foreignobject", "iframe", "object", "embed", "audio", "video", "animate", "animatemotion", "animatetransform", "set"]), ke = /* @__PURE__ */ new Set(["href", "xlink:href", "src"]), Oe = /^(?:[.#][A-Za-z_][\w-]*|[A-Za-z][\w-]*)(?:\s+(?:[.#][A-Za-z_][\w-]*|[A-Za-z][\w-]*))*$/, pe = /^(?:none|#[0-9a-f]{3,8}|url\(#[A-Za-z_][\w:.-]*\))$/i, $e = {
+  fill: pe,
+  stroke: pe,
   "stroke-width": /^\d+(?:\.\d+)?$/,
   "stroke-dasharray": /^\d+(?:\.\d+)?(?:[ ,]+\d+(?:\.\d+)?)*$/,
   "font-size": /^\d+(?:\.\d+)?px$/,
@@ -55,7 +55,7 @@ const ke = /* @__PURE__ */ new Set(["script", "foreignobject", "iframe", "object
   "font-weight": /^(?:normal|bold|[1-9]00)$/,
   "text-anchor": /^(?:start|middle|end)$/
 };
-function je(t) {
+function Te(t) {
   let o = t;
   for (; ; ) {
     const f = o.search(/@media\b/i);
@@ -71,7 +71,7 @@ function je(t) {
 }
 function ze(t) {
   if (!t.trim() || t.length > 32768) return;
-  const o = je(t), f = /\s*([^{}]+)\{([^{}]*)\}/gy, u = [];
+  const o = Te(t), f = /\s*([^{}]+)\{([^{}]*)\}/gy, u = [];
   let p = 0;
   for (; p < o.length; ) {
     f.lastIndex = p;
@@ -82,18 +82,18 @@ function ze(t) {
     if (a === void 0 || g === void 0) return;
     const w = a.split(",").map((b) => b.trim());
     if (!w.every((b) => Oe.test(b))) return;
-    const S = [];
+    const A = [];
     for (const b of g.split(";")) {
-      const M = b.indexOf(":");
-      if (M < 1) continue;
-      const A = b.slice(0, M).trim().toLowerCase(), c = b.slice(M + 1).trim();
-      Te[A]?.test(c) === !0 && S.push([A, c]);
+      const D = b.indexOf(":");
+      if (D < 1) continue;
+      const L = b.slice(0, D).trim().toLowerCase(), d = b.slice(D + 1).trim();
+      $e[L]?.test(d) === !0 && A.push([L, d]);
     }
-    S.length && u.push({ selectors: w, declarations: S });
+    A.length && u.push({ selectors: w, declarations: A });
   }
   return u;
 }
-function Ne(t) {
+function je(t) {
   if (/<!doctype|<\?xml-stylesheet/i.test(t)) throw new Error("The artifact contains forbidden XML directives");
   const o = new DOMParser().parseFromString(t, "image/svg+xml");
   if (o.querySelector("parsererror") || o.documentElement.localName !== "svg") throw new Error("The artifact contains invalid SVG");
@@ -106,38 +106,38 @@ function Ne(t) {
       f.remove();
       continue;
     }
-    if (ke.has(f.localName.toLowerCase())) {
+    if (Ce.has(f.localName.toLowerCase())) {
       f.remove();
       continue;
     }
     for (const u of [...f.attributes]) {
       const p = u.name.toLowerCase(), s = u.value.trim().toLowerCase(), a = /url\s*\(\s*['"]?(?:https?:|\/\/|data:|javascript:|file:)/i.test(s);
-      (p.startsWith("on") || p === "style" || a || $e.has(p) && s !== "" && !s.startsWith("#")) && f.removeAttribute(u.name);
+      (p.startsWith("on") || p === "style" || a || ke.has(p) && s !== "" && !s.startsWith("#")) && f.removeAttribute(u.name);
     }
   }
   return new XMLSerializer().serializeToString(o.documentElement);
 }
-const Me = 1, _e = () => ({ post: (t) => window.parent.postMessage(t, "*") });
-function qe(t) {
+const Ne = 1, Ze = () => ({ post: (t) => window.parent.postMessage(t, "*") });
+function De(t) {
   if (typeof t != "object" || t === null) return !1;
   const o = t, f = o.overlays;
   return typeof o.zoom == "number" && Number.isFinite(o.zoom) && typeof o.panX == "number" && Number.isFinite(o.panX) && typeof o.panY == "number" && Number.isFinite(o.panY) && typeof f == "object" && f !== null && typeof f.earned == "boolean" && typeof f.gap == "boolean" && typeof f.violation == "boolean" && (o.detailsHidden === void 0 || typeof o.detailsHidden == "boolean") && (o.runId === void 0 || typeof o.runId == "string") && (o.selectedId === void 0 || typeof o.selectedId == "string") && (o.focusedId === void 0 || typeof o.focusedId == "string");
 }
-function Re(t) {
+function qe(t) {
   if (typeof t != "object" || t === null) return !1;
   const o = t;
-  return o.channel === "ply-vis" && o.version === 1 && (o.type === "artifact" && "envelope" in o || o.type === "restore-state" && qe(o.state));
+  return o.channel === "ply-vis" && o.version === 1 && (o.type === "artifact" && "envelope" in o || o.type === "restore-state" && De(o.state));
 }
-const Ve = () => Object.freeze({ detailsHidden: !0, zoom: 1, panX: 0, panY: 0, overlays: Object.freeze({ earned: !0, gap: !0, violation: !0 }) }), me = (t, o) => Object.freeze({ ...t, ...o, overlays: Object.freeze({ ...t.overlays, ...o.overlays }) });
-function De(t, o, f = 0.5) {
+const Me = () => Object.freeze({ detailsHidden: !0, zoom: 1, panX: 0, panY: 0, foldDetail: !0, overlays: Object.freeze({ earned: !0, gap: !0, violation: !0 }) }), ue = (t, o) => Object.freeze({ ...t, ...o, overlays: Object.freeze({ ...t.overlays, ...o.overlays }) });
+function Re(t, o, f = 0.5) {
   return o.x >= t.x - f && o.y >= t.y - f && o.x + o.width <= t.x + t.width + f && o.y + o.height <= t.y + t.height + f;
 }
-function Be(t, o, f = {}) {
-  const u = f.margin ?? 24, p = f.minZoom ?? 0.2, s = f.maxZoom ?? 4, a = Math.max(1, t.width - u * 2), g = Math.max(1, t.height - u * 2), w = Math.max(1, o.width), S = Math.max(1, o.height), b = Math.min(s, Math.max(p, Math.min(a / w, g / S)));
+function Ve(t, o, f = {}) {
+  const u = f.margin ?? 24, p = f.minZoom ?? 0.2, s = f.maxZoom ?? 4, a = Math.max(1, t.width - u * 2), g = Math.max(1, t.height - u * 2), w = Math.max(1, o.width), A = Math.max(1, o.height), b = Math.min(s, Math.max(p, Math.min(a / w, g / A)));
   return {
     zoom: b,
     panX: t.width / 2 - (o.x + w / 2) * b,
-    panY: t.height / 2 - (o.y + S / 2) * b
+    panY: t.height / 2 - (o.y + A / 2) * b
   };
 }
 function Ye(t, o, f) {
@@ -147,12 +147,15 @@ function Ye(t, o, f) {
     panY: f.y - (f.y - t.panY) / t.zoom * o
   };
 }
-const He = 500, J = (t, o) => `<button type="button" aria-label="${t}" title="${t}">${o}</button>`, Xe = `
+const Be = 500, J = (t, o) => `<button type="button" aria-label="${t}" title="${t}">${o}</button>`, He = `
   <section class="ply-vis" aria-label="Ply visual evidence viewer">
     <header class="ply-toolbar">
       <div class="ply-tools" role="group" aria-label="Canvas controls">
         ${J("Zoom out", "−")}${J("Zoom in", "+")}${J("Fit canvas", "Fit")}
       </div>
+      <fieldset><legend>Detail</legend>
+        <label><input type="checkbox" data-fold-detail checked> Fold detail when zoomed out</label>
+      </fieldset>
       <fieldset><legend>Overlays</legend>
         <label><input type="checkbox" data-overlay="earned" checked> Earned</label>
         <label><input type="checkbox" data-overlay="gap" checked> Gap</label>
@@ -171,22 +174,22 @@ const He = 500, J = (t, o) => `<button type="button" aria-label="${t}" title="${
     </div>
     <p class="ply-status" role="status" aria-live="polite"></p>
   </section>`;
-function Fe(t, o, f = []) {
-  t.innerHTML = Xe;
-  const u = t.querySelector(".ply-vis"), p = u.querySelector(".ply-canvas"), s = u.querySelector(".ply-stage"), a = u.querySelector(".ply-tooltip"), g = u.querySelector(".ply-inspector"), w = u.querySelector(".ply-inspector-toggle"), S = u.querySelector(".ply-workspace"), b = u.querySelector(".ply-status"), M = u.querySelector(".ply-toolbar fieldset"), A = u.querySelector(".ply-breadcrumbs");
-  let c = Ve(), y, I, Q = 0, x, q;
-  const ee = () => o.post({ channel: "ply-vis", version: Me, type: "persist-state", state: c }), L = (e, n = !0) => {
-    c = me(c, e), n && ee();
-  }, R = () => {
-    s.style.transform = `translate(${c.panX}px, ${c.panY}px) scale(${c.zoom})`;
-  }, he = () => y ? Object.values(y.elements).filter((e) => !c.focusedId || e.id === c.focusedId || X(e, c.focusedId, y.elements)) : [];
+function _e(t, o, f = []) {
+  t.innerHTML = He;
+  const u = t.querySelector(".ply-vis"), p = u.querySelector(".ply-canvas"), s = u.querySelector(".ply-stage"), a = u.querySelector(".ply-tooltip"), g = u.querySelector(".ply-inspector"), w = u.querySelector(".ply-inspector-toggle"), A = u.querySelector(".ply-workspace"), b = u.querySelector(".ply-status"), D = u.querySelector(".ply-toolbar fieldset"), L = u.querySelector(".ply-breadcrumbs");
+  let d = Me(), y, I, Q = 0, x, q;
+  const ee = () => o.post({ channel: "ply-vis", version: Ne, type: "persist-state", state: d }), S = (e, n = !0) => {
+    d = ue(d, e), n && ee();
+  }, M = () => {
+    s.style.transform = `translate(${d.panX}px, ${d.panY}px) scale(${d.zoom})`;
+  }, me = () => y ? Object.values(y.elements).filter((e) => !d.focusedId || e.id === d.focusedId || X(e, d.focusedId, y.elements)) : [];
   function T() {
-    g.hidden = c.detailsHidden, S.classList.toggle("is-inspector-hidden", c.detailsHidden);
-    const e = c.detailsHidden ? "Show details" : "Hide details";
-    w.setAttribute("aria-label", e), w.title = e, w.setAttribute("aria-expanded", String(!c.detailsHidden)), w.textContent = c.detailsHidden ? "‹" : "›";
+    g.hidden = d.detailsHidden, A.classList.toggle("is-inspector-hidden", d.detailsHidden);
+    const e = d.detailsHidden ? "Show details" : "Hide details";
+    w.setAttribute("aria-label", e), w.title = e, w.setAttribute("aria-expanded", String(!d.detailsHidden)), w.textContent = d.detailsHidden ? "‹" : "›";
   }
   function te(e, n = !0) {
-    L({ detailsHidden: e }, n), T();
+    S({ detailsHidden: e }, n), T();
   }
   function X(e, n, i) {
     let l = e.parentId;
@@ -196,31 +199,27 @@ function Fe(t, o, f = []) {
     }
     return !1;
   }
-  function ye(e) {
+  function he(e) {
     let n = 0, i = e;
-    for (; i?.parentId && i.id !== c.focusedId; )
+    for (; i?.parentId && i.id !== d.focusedId; )
       i = y?.elements[i.parentId], n += 1;
-    return c.focusedId && i?.id !== c.focusedId ? Number.POSITIVE_INFINITY : n;
+    return d.focusedId && i?.id !== d.focusedId ? Number.POSITIVE_INFINITY : n;
   }
-  let ne = 1;
-  const ge = () => {
-    const e = c.zoom / (ne || 1);
-    return e < 0.5 ? 1 : e < 0.85 ? 2 : Number.POSITIVE_INFINITY;
-  };
-  function ve() {
-    if (A.replaceChildren(), !y) return;
+  const ye = () => d.foldDetail ? d.zoom < 0.8 ? 1 : d.zoom < 1.5 ? 2 : Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY;
+  function ge() {
+    if (L.replaceChildren(), !y) return;
     const e = [];
-    let n = c.focusedId ? y.elements[c.focusedId] : void 0;
+    let n = d.focusedId ? y.elements[d.focusedId] : void 0;
     for (; n; )
       e.unshift(n), n = n.parentId ? y.elements[n.parentId] : void 0;
     const i = document.createElement("button");
-    i.type = "button", i.textContent = "Workspace", i.dataset.focusId = "", A.append(i);
+    i.type = "button", i.textContent = "Workspace", i.dataset.focusId = "", L.append(i);
     for (const l of e) {
-      const d = document.createElement("button");
-      d.type = "button", d.textContent = l.label, d.dataset.focusId = l.id, A.append(d);
+      const c = document.createElement("button");
+      c.type = "button", c.textContent = l.label, c.dataset.focusId = l.id, L.append(c);
     }
   }
-  function Y(e) {
+  function B(e) {
     g.replaceChildren();
     const n = document.createElement("h2");
     if (n.textContent = e?.label ?? "Details", g.append(n), !e || !y) {
@@ -230,24 +229,24 @@ function Fe(t, o, f = []) {
     }
     const i = e.declaration?.split(`
 `).filter(Boolean);
-    g.append(j("Declaration", i?.length ? i : ["No declaration text supplied."])), g.append(j("Verdict", [e.evidence.verdict])), g.append(j("Statuses", e.evidence.statuses.length ? e.evidence.statuses : ["No statuses supplied."]));
+    g.append(z("Declaration", i?.length ? i : ["No declaration text supplied."])), g.append(z("Verdict", [e.evidence.verdict])), g.append(z("Statuses", e.evidence.statuses.length ? e.evidence.statuses : ["No statuses supplied."]));
     const l = Object.entries(e.evidence).filter(([r]) => !["verdict", "statuses"].includes(r)).map(([r, h]) => `${r}: ${typeof h == "string" ? h : JSON.stringify(h)}`);
-    g.append(j("Earned evidence", l.length ? l : ["No additional evidence details supplied."])), g.append(j("Limitations", e.limitations?.length ? e.limitations : ["No limitations supplied."]));
-    const d = new Map(y.diagnostics.map((r) => [r.id, r])), m = e.diagnosticIds.map((r) => d.get(r)).filter((r) => r !== void 0).map((r) => `${r.code} — ${r.severity}: ${r.message}`);
-    if (g.append(j("Diagnostics", m.length ? m : ["No diagnostics supplied."])), g.append(be(y.run)), e.source) {
+    g.append(z("Earned evidence", l.length ? l : ["No additional evidence details supplied."])), g.append(z("Limitations", e.limitations?.length ? e.limitations : ["No limitations supplied."]));
+    const c = new Map(y.diagnostics.map((r) => [r.id, r])), m = e.diagnosticIds.map((r) => c.get(r)).filter((r) => r !== void 0).map((r) => `${r.code} — ${r.severity}: ${r.message}`);
+    if (g.append(z("Diagnostics", m.length ? m : ["No diagnostics supplied."])), g.append(be(y.run)), e.source) {
       const r = document.createElement("button");
       r.type = "button", r.className = "ply-source", r.textContent = `Open ${e.source.file}:${e.source.startLine + 1}:${e.source.startColumn + 1}`, r.addEventListener("click", () => o.post({ channel: "ply-vis", version: 1, type: "navigate", source: e.source })), g.append(r);
     }
   }
-  function j(e, n) {
+  function z(e, n) {
     const i = document.createElement("section"), l = document.createElement("h3");
     l.textContent = e, i.append(l);
-    const d = document.createElement("ul");
+    const c = document.createElement("ul");
     for (const m of n) {
       const r = document.createElement("li");
-      r.textContent = m, d.append(r);
+      r.textContent = m, c.append(r);
     }
-    return i.append(d), i;
+    return i.append(c), i;
   }
   function be(e) {
     const n = {
@@ -258,7 +257,7 @@ function Fe(t, o, f = []) {
       narrowed_evidence: "Checks covered less than promised"
     }, i = document.createElement("section"), l = document.createElement("h3");
     l.textContent = "Run details";
-    const d = document.createElement("dl"), m = [
+    const c = document.createElement("dl"), m = [
       ["Result", n[e.outcome]],
       ["Finished", new Date(e.completedAt).toLocaleString()],
       ["Checked folder", e.root.path === "." ? "Workspace root" : e.root.path]
@@ -266,106 +265,106 @@ function Fe(t, o, f = []) {
     for (const [r, h] of m) {
       const $ = document.createElement("dt");
       $.textContent = r;
-      const z = document.createElement("dd");
-      z.textContent = h, d.append($, z);
+      const j = document.createElement("dd");
+      j.textContent = h, c.append($, j);
     }
-    return i.append(l, d), i;
+    return i.append(l, c), i;
   }
-  function V(e) {
+  function R(e) {
     return e instanceof Element ? e.closest("[data-element-id], [data-ply-id], [data-ply-title]") ?? void 0 : void 0;
   }
   function C(e) {
     const n = e.dataset.elementId ?? e.dataset.plyId;
     return n ? y?.elements[n] : void 0;
   }
-  function we(e) {
+  function ve(e) {
     const n = new Set((e.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean));
     n.add(a.id), e.setAttribute("aria-describedby", [...n].join(" "));
   }
-  function oe(e) {
+  function ne(e) {
     const n = (e.getAttribute("aria-describedby") ?? "").split(/\s+/).filter((i) => i && i !== a.id);
     n.length ? e.setAttribute("aria-describedby", n.join(" ")) : e.removeAttribute("aria-describedby");
   }
-  function D() {
+  function V() {
     q !== void 0 && window.clearTimeout(q), q = void 0;
   }
   function k() {
-    x && oe(x), D(), x = void 0, a.hidden = !0, a.replaceChildren();
+    x && ne(x), V(), x = void 0, a.hidden = !0, a.replaceChildren();
   }
-  function Ie(e, n) {
+  function we(e, n) {
     if (!y) return [];
     const i = [`${e.kind} · Verdict: ${e.evidence.verdict}`];
     e.evidence.statuses.length && i.push(`Statuses: ${e.evidence.statuses.join(", ")}`);
     const l = Object.entries(e.evidence).filter(([r, h]) => !["verdict", "statuses"].includes(r) && h !== !1 && h !== void 0).map(([r, h]) => `${r}: ${typeof h == "string" ? h : JSON.stringify(h)}`);
     i.push(...l), i.push(...(e.limitations ?? []).map((r) => `Limitation: ${r}`));
-    const d = new Map(y.diagnostics.map((r) => [r.id, r]));
+    const c = new Map(y.diagnostics.map((r) => [r.id, r]));
     for (const r of e.diagnosticIds) {
-      const h = d.get(r);
+      const h = c.get(r);
       h && i.push(`${h.code} — ${h.severity}: ${h.message}`);
     }
     e.source && i.push(`Source: ${e.source.file}:${e.source.startLine + 1}:${e.source.startColumn + 1}`);
     const m = n.dataset.plyTitle?.trim();
     return m && m !== e.label && !i.includes(m) && i.push(m), i;
   }
-  function ie(e, n) {
+  function oe(e, n) {
     const i = p.getBoundingClientRect(), l = 8;
     a.style.maxHeight = `${Math.max(0, i.height - l * 2)}px`;
-    const d = 12, m = a.offsetWidth, r = a.offsetHeight, h = Math.max(l, i.width - m - l), $ = Math.max(l, i.height - r - l), z = e - i.left + d, N = n - i.top + d, W = N + r <= i.height - l ? N : n - i.top - r - d;
-    a.style.left = `${Math.min(h, Math.max(l, z))}px`, a.style.top = `${Math.min($, Math.max(l, W))}px`;
+    const c = 12, m = a.offsetWidth, r = a.offsetHeight, h = Math.max(l, i.width - m - l), $ = Math.max(l, i.height - r - l), j = e - i.left + c, N = n - i.top + c, W = N + r <= i.height - l ? N : n - i.top - r - c;
+    a.style.left = `${Math.min(h, Math.max(l, j))}px`, a.style.top = `${Math.min($, Math.max(l, W))}px`;
   }
-  function se(e, n, i) {
-    const l = C(e), d = e.dataset.plyTitle?.trim();
-    if (!l && !d || e.hasAttribute("hidden")) {
+  function ie(e, n, i) {
+    const l = C(e), c = e.dataset.plyTitle?.trim();
+    if (!l && !c || e.hasAttribute("hidden")) {
       k();
       return;
     }
-    x && x !== e && oe(x), x = e;
+    x && x !== e && ne(x), x = e;
     const m = document.createElement("span");
     if (l) {
       const h = document.createElement("strong");
-      h.textContent = l.label, m.textContent = Ie(l, e).join(`
+      h.textContent = l.label, m.textContent = we(l, e).join(`
 `), a.replaceChildren(h, m);
     } else
-      m.textContent = d, a.replaceChildren(m);
-    a.hidden = !1, we(e);
+      m.textContent = c, a.replaceChildren(m);
+    a.hidden = !1, ve(e);
     const r = e.getBoundingClientRect();
-    ie(n ?? r.left + r.width / 2, i ?? r.bottom);
+    oe(n ?? r.left + r.width / 2, i ?? r.bottom);
   }
-  function re(e, n, i) {
-    D(), x && x !== e && k(), q = window.setTimeout(() => {
-      q = void 0, se(e, n, i);
-    }, He);
+  function se(e, n, i) {
+    V(), x && x !== e && k(), q = window.setTimeout(() => {
+      q = void 0, ie(e, n, i);
+    }, Be);
   }
   function O() {
     if (!y) return;
-    const e = [...s.querySelectorAll("[data-element-id], [data-ply-id]")], n = c.focusedId ? y.elements[c.focusedId] : void 0;
-    for (const d of e) {
-      const m = d.dataset.elementId ?? d.dataset.plyId ?? "", r = y.elements[m];
+    const e = [...s.querySelectorAll("[data-element-id], [data-ply-id]")], n = d.focusedId ? y.elements[d.focusedId] : void 0;
+    for (const c of e) {
+      const m = c.dataset.elementId ?? c.dataset.plyId ?? "", r = y.elements[m];
       if (!r) {
-        d.removeAttribute("hidden");
+        c.removeAttribute("hidden");
         continue;
       }
-      const h = /* @__PURE__ */ new Set([r.evidence.verdict, ...r.evidence.statuses]), $ = h.has("violation") ? "violation" : h.has("gap") ? "gap" : h.has("earned") ? "earned" : "declared", z = $ === "declared" || c.overlays[$], N = n ? X(n, r.id, y.elements) : !1, W = !c.focusedId || r.id === c.focusedId || X(r, c.focusedId, y.elements) || N, Ae = N || ye(r) <= ge();
-      d.toggleAttribute("hidden", !W || !Ae || !z && !N);
-      const Le = [r.evidence.verdict, ...r.evidence.statuses].filter(Boolean).join(", ") || "declared";
-      d.setAttribute("role", "button"), d.setAttribute("aria-label", `${r.kind}: ${r.label}; ${Le}`), d.dataset.state = $, d.classList.toggle("is-selected", r.id === c.selectedId), d === x && (d.hasAttribute("hidden") || !d.isConnected) && k();
+      const h = /* @__PURE__ */ new Set([r.evidence.verdict, ...r.evidence.statuses]), $ = h.has("violation") ? "violation" : h.has("gap") ? "gap" : h.has("earned") ? "earned" : "declared", j = $ === "declared" || d.overlays[$], N = n ? X(n, r.id, y.elements) : !1, W = !d.focusedId || r.id === d.focusedId || X(r, d.focusedId, y.elements) || N, Se = N || he(r) <= ye();
+      c.toggleAttribute("hidden", !W || !Se || !j && !N);
+      const Ae = [r.evidence.verdict, ...r.evidence.statuses].filter(Boolean).join(", ") || "declared";
+      c.setAttribute("role", "button"), c.setAttribute("aria-label", `${r.kind}: ${r.label}; ${Ae}`), c.dataset.state = $, c.classList.toggle("is-selected", r.id === d.selectedId), c === x && (c.hasAttribute("hidden") || !c.isConnected) && k();
     }
-    const i = e.filter((d) => !d.hasAttribute("hidden") && C(d)), l = i.find((d) => C(d)?.id === c.selectedId) ?? i[0];
-    for (const d of e) d.setAttribute("tabindex", d === l ? "0" : "-1");
-    xe(), ve();
+    const i = e.filter((c) => !c.hasAttribute("hidden") && C(c)), l = i.find((c) => C(c)?.id === d.selectedId) ?? i[0];
+    for (const c of e) c.setAttribute("tabindex", c === l ? "0" : "-1");
+    Ie(), ge();
   }
-  function xe() {
+  function Ie() {
     const e = s.querySelector("svg");
     if (!e) return;
-    for (const d of [...e.querySelectorAll("[data-ply-focus-hidden]")])
-      d.removeAttribute("hidden"), d.removeAttribute("data-ply-focus-hidden");
-    if (!c.focusedId) return;
-    const n = [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((d) => C(d)?.id === c.focusedId);
+    for (const c of [...e.querySelectorAll("[data-ply-focus-hidden]")])
+      c.removeAttribute("hidden"), c.removeAttribute("data-ply-focus-hidden");
+    if (!d.focusedId) return;
+    const n = [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((c) => C(c)?.id === d.focusedId);
     if (!n || typeof n.getBBox != "function") return;
     const i = n.getBBox(), l = { x: i.x, y: i.y, width: i.width, height: i.height };
-    for (const d of [...e.children]) {
-      if (!(d instanceof SVGElement) || d.matches("[data-element-id], [data-ply-id], defs, style, title") || d.contains(n)) continue;
-      const m = d;
+    for (const c of [...e.children]) {
+      if (!(c instanceof SVGElement) || c.matches("[data-element-id], [data-ply-id], defs, style, title") || c.contains(n)) continue;
+      const m = c;
       if (typeof m.getBBox != "function") continue;
       let r;
       try {
@@ -373,63 +372,65 @@ function Fe(t, o, f = []) {
       } catch {
         continue;
       }
-      De(l, r) || (d.setAttribute("hidden", ""), d.setAttribute("data-ply-focus-hidden", ""));
+      Re(l, r) || (c.setAttribute("hidden", ""), c.setAttribute("data-ply-focus-hidden", ""));
     }
   }
-  function Ee(e) {
-    y = e, L({ runId: e.run.id, selectedId: void 0, focusedId: void 0, detailsHidden: !0, zoom: 1, panX: 0, panY: 0 }, !1);
+  function xe(e) {
+    y = e, S({ runId: e.run.id, selectedId: void 0, focusedId: void 0, detailsHidden: !0, zoom: 1, panX: 0, panY: 0 }, !1);
     const n = Object.keys(e.elements).length > 0;
-    M.hidden = !n, A.hidden = !n, w.hidden = !n, n || te(!0, !1), T(), k(), s.innerHTML = e.svg;
+    D.hidden = !n, L.hidden = !n, w.hidden = !n, n || te(!0, !1), T(), k(), s.innerHTML = e.svg;
     for (const l of [...s.querySelectorAll("title")]) {
-      const d = l.parentElement, m = d?.closest("[data-element-id], [data-ply-id]") ?? (d instanceof SVGElement ? d : void 0), r = l.textContent?.trim();
+      const c = l.parentElement, m = c?.closest("[data-element-id], [data-ply-id]") ?? (c instanceof SVGElement ? c : void 0), r = l.textContent?.trim();
       m && r && (m.dataset.plyTitle = r, C(m) || (m.setAttribute("tabindex", "0"), m.setAttribute("role", "img"), m.setAttribute("aria-label", r))), l.remove();
     }
     p.dataset.empty = "false";
     const i = p.querySelector(".ply-empty");
-    i && i.remove(), O(), R(), Y(c.selectedId ? e.elements[c.selectedId] : void 0), b.textContent = e.run.tool.version === "render" ? "Rendered Ply spec" : `Showing run ${e.run.id}`, typeof window.requestAnimationFrame == "function" && window.requestAnimationFrame(() => P(!1));
+    i && i.remove(), O(), M(), B(d.selectedId ? e.elements[d.selectedId] : void 0), b.textContent = e.run.tool.version === "render" ? "Rendered Ply spec" : `Showing run ${e.run.id}`, typeof window.requestAnimationFrame == "function" && window.requestAnimationFrame(() => P(!1));
   }
   function Z(e) {
     try {
-      const n = Ce(e), i = Object.freeze({ ...n, svg: Ne(n.svg) });
-      return Ee(i), delete u.dataset.error, !0;
+      const n = Le(e), i = Object.freeze({ ...n, svg: je(n.svg) });
+      return xe(i), delete u.dataset.error, !0;
     } catch (n) {
       const i = n instanceof v || n instanceof Error ? n.message : "Unknown artifact error";
       return b.textContent = `Artifact rejected: ${i}. The previous snapshot is unchanged.`, u.dataset.error = "true", o.post({ channel: "ply-vis", version: 1, type: "error", message: i }), !1;
     }
   }
   function _(e) {
-    y?.elements[e] && (L({ selectedId: e, detailsHidden: !1 }), T(), O(), Y(y.elements[e]));
+    y?.elements[e] && (S({ selectedId: e, detailsHidden: !1 }), T(), O(), B(y.elements[e]));
   }
-  function ae(e) {
+  function re(e) {
     [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((i) => C(i)?.id === e)?.focus();
   }
   function H(e) {
-    e && !y?.elements[e] || (e && !y.elements[e].parentId && (e = void 0), L({ focusedId: e, selectedId: e, detailsHidden: !e }), T(), O(), Y(e ? y?.elements[e] : void 0), P());
+    e && !y?.elements[e] || (e && !y.elements[e].parentId && (e = void 0), S({ focusedId: e, selectedId: e, detailsHidden: !e }), T(), O(), B(e ? y?.elements[e] : void 0), P());
   }
-  function Se() {
-    const e = p.getBoundingClientRect(), i = (c.selectedId ? [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((l) => C(l)?.id === c.selectedId) : void 0)?.getBoundingClientRect();
+  function Ee() {
+    const e = p.getBoundingClientRect(), i = (d.selectedId ? [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((l) => C(l)?.id === d.selectedId) : void 0)?.getBoundingClientRect();
     return i ? { x: i.left - e.left + i.width / 2, y: i.top - e.top + i.height / 2 } : { x: e.width / 2, y: e.height / 2 };
   }
-  function F(e, n = Se()) {
-    L(Ye(c, Math.min(4, Math.max(0.2, e)), n)), O(), R(), b.textContent = `Zoom ${Math.round(c.zoom * 100)}%`;
+  function F(e, n = Ee()) {
+    S(Ye(d, Math.min(4, Math.max(0.2, e)), n)), O(), M(), b.textContent = `Zoom ${Math.round(d.zoom * 100)}%`;
   }
   function P(e = !0) {
     const n = s.querySelector("svg");
     if (!n) return;
-    const i = s.getBoundingClientRect(), l = c.focusedId ? [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((h) => C(h)?.id === c.focusedId) : n;
+    const i = s.getBoundingClientRect(), l = d.focusedId ? [...s.querySelectorAll("[data-element-id], [data-ply-id]")].find((h) => C(h)?.id === d.focusedId) : n;
     if (!l) return;
-    const d = l.getBoundingClientRect(), m = c.zoom || 1, r = {
-      x: (d.left - i.left) / m,
-      y: (d.top - i.top) / m,
-      width: d.width / m,
-      height: d.height / m
+    const c = l.getBoundingClientRect(), m = d.zoom || 1, r = {
+      x: (c.left - i.left) / m,
+      y: (c.top - i.top) / m,
+      width: c.width / m,
+      height: c.height / m
     };
-    L(Be({ width: p.clientWidth, height: p.clientHeight }, r)), c.focusedId || (ne = c.zoom || 1), O(), R(), e && (b.textContent = c.focusedId ? "Focused element fitted" : "Canvas fitted");
+    S(Ve({ width: p.clientWidth, height: p.clientHeight }, r)), O(), M(), e && (b.textContent = d.focusedId ? "Focused element fitted" : "Canvas fitted");
   }
-  u.querySelector('[aria-label="Zoom in"]').addEventListener("click", () => F(c.zoom * 1.2)), u.querySelector('[aria-label="Zoom out"]').addEventListener("click", () => F(c.zoom / 1.2)), u.querySelector('[aria-label="Fit canvas"]').addEventListener("click", () => P()), w.addEventListener("click", () => te(!c.detailsHidden)), u.querySelectorAll("[data-overlay]").forEach((e) => e.addEventListener("change", () => {
+  u.querySelector('[aria-label="Zoom in"]').addEventListener("click", () => F(d.zoom * 1.2)), u.querySelector('[aria-label="Zoom out"]').addEventListener("click", () => F(d.zoom / 1.2)), u.querySelector('[aria-label="Fit canvas"]').addEventListener("click", () => P()), w.addEventListener("click", () => te(!d.detailsHidden)), u.querySelectorAll("[data-overlay]").forEach((e) => e.addEventListener("change", () => {
     const n = e.dataset.overlay;
-    L({ overlays: { ...c.overlays, [n]: e.checked } }), O();
-  })), A.addEventListener("click", (e) => {
+    S({ overlays: { ...d.overlays, [n]: e.checked } }), O();
+  })), u.querySelector("[data-fold-detail]").addEventListener("change", (e) => {
+    S({ foldDetail: e.target.checked }), O(), b.textContent = d.foldDetail ? "Detail folds away as you zoom out" : "Detail stays on screen at every zoom";
+  }), L.addEventListener("click", (e) => {
     const n = e.target.closest("button[data-focus-id]");
     n && H(n.dataset.focusId || void 0);
   }), s.addEventListener("click", (e) => {
@@ -440,32 +441,32 @@ function Fe(t, o, f = []) {
     const n = e.target.closest("[data-element-id], [data-ply-id]"), i = n?.dataset.elementId ?? n?.dataset.plyId;
     i && H(i);
   }), s.addEventListener("pointerover", (e) => {
-    const n = V(e.target);
-    n && re(n, e.clientX, e.clientY);
+    const n = R(e.target);
+    n && se(n, e.clientX, e.clientY);
   }), s.addEventListener("pointermove", (e) => {
-    const n = V(e.target);
+    const n = R(e.target);
     if (!n) {
-      D();
+      V();
       return;
     }
-    n === x && !a.hidden ? ie(e.clientX, e.clientY) : re(n, e.clientX, e.clientY);
+    n === x && !a.hidden ? oe(e.clientX, e.clientY) : se(n, e.clientX, e.clientY);
   }), s.addEventListener("pointerout", (e) => {
-    const n = V(e.target);
+    const n = R(e.target);
     !n || e.relatedTarget instanceof Node && (n.contains(e.relatedTarget) || a.contains(e.relatedTarget)) || n.contains(document.activeElement) || k();
   }), s.addEventListener("focusin", (e) => {
-    const n = V(e.target);
-    n && (D(), se(n));
+    const n = R(e.target);
+    n && (V(), ie(n));
   }), s.addEventListener("focusout", (e) => {
-    const n = V(e.target);
+    const n = R(e.target);
     !n || e.relatedTarget instanceof Node && n.contains(e.relatedTarget) || n.matches(":hover") || k();
   }), a.addEventListener("pointerleave", (e) => {
     e.relatedTarget instanceof Node && x?.contains(e.relatedTarget) || k();
   }), a.addEventListener("wheel", (e) => e.stopPropagation()), a.addEventListener("pointerdown", (e) => e.stopPropagation()), p.addEventListener("wheel", (e) => {
     e.preventDefault();
     const n = p.getBoundingClientRect();
-    F(c.zoom * Math.exp(-e.deltaY * 2e-3), { x: e.clientX - n.left, y: e.clientY - n.top });
+    F(d.zoom * Math.exp(-e.deltaY * 2e-3), { x: e.clientX - n.left, y: e.clientY - n.top });
   }, { passive: !1 }), p.addEventListener("pointerdown", (e) => {
-    e.button === 0 && (I = { x: e.clientX, y: e.clientY, panX: c.panX, panY: c.panY, pointerId: e.pointerId, moved: !1 });
+    e.button === 0 && (I = { x: e.clientX, y: e.clientY, panX: d.panX, panY: d.panY, pointerId: e.pointerId, moved: !1 });
   }), p.addEventListener("pointermove", (e) => {
     if (!I) return;
     const n = e.clientX - I.x, i = e.clientY - I.y;
@@ -477,7 +478,7 @@ function Fe(t, o, f = []) {
         } catch {
         }
       }
-      e.preventDefault(), L({ panX: I.panX + n, panY: I.panY + i }, !1), R();
+      e.preventDefault(), S({ panX: I.panX + n, panY: I.panY + i }, !1), M();
     }
   });
   const U = () => {
@@ -488,18 +489,18 @@ function Fe(t, o, f = []) {
       e.preventDefault(), k();
       return;
     }
-    const n = he();
+    const n = me();
     if (!n.length) return;
-    const i = Math.max(0, n.findIndex((l) => l.id === c.selectedId));
+    const i = Math.max(0, n.findIndex((l) => l.id === d.selectedId));
     if (e.key === "ArrowRight" || e.key === "ArrowDown") {
       e.preventDefault();
       const l = n[(i + 1) % n.length].id;
-      _(l), ae(l);
+      _(l), re(l);
     }
     if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
       e.preventDefault();
       const l = n[(i - 1 + n.length) % n.length].id;
-      _(l), ae(l);
+      _(l), re(l);
     }
     if (e.key === "Enter") {
       e.preventDefault();
@@ -508,35 +509,35 @@ function Fe(t, o, f = []) {
     }
     if (e.key === "Escape") {
       e.preventDefault();
-      const l = c.focusedId ? y?.elements[c.focusedId]?.parentId : void 0;
+      const l = d.focusedId ? y?.elements[d.focusedId]?.parentId : void 0;
       H(l);
     }
   });
-  const de = (e) => {
-    Re(e.data) && (e.data.type === "artifact" ? Z(e.data.envelope) : (c = me(c, e.data.state), u.querySelectorAll("[data-overlay]").forEach((n) => {
-      n.checked = c.overlays[n.dataset.overlay];
-    }), y && (T(), O(), R(), Y(c.selectedId ? y.elements[c.selectedId] : void 0))));
-  }, ce = (e) => {
+  const ae = (e) => {
+    qe(e.data) && (e.data.type === "artifact" ? Z(e.data.envelope) : (d = ue(d, e.data.state), u.querySelectorAll("[data-overlay]").forEach((n) => {
+      n.checked = d.overlays[n.dataset.overlay];
+    }), u.querySelector("[data-fold-detail]").checked = d.foldDetail, y && (T(), O(), M(), B(d.selectedId ? y.elements[d.selectedId] : void 0))));
+  }, de = (e) => {
     b.textContent = `Viewer error: ${e}`, o.post({ channel: "ply-vis", version: 1, type: "error", message: e });
-  }, le = (e) => ce(e.message || "Unknown runtime error"), fe = (e) => ce(e.reason instanceof Error ? e.reason.message : String(e.reason));
-  window.addEventListener("message", de), window.addEventListener("error", le), window.addEventListener("unhandledrejection", fe), T();
+  }, ce = (e) => de(e.message || "Unknown runtime error"), le = (e) => de(e.reason instanceof Error ? e.reason.message : String(e.reason));
+  window.addEventListener("message", ae), window.addEventListener("error", ce), window.addEventListener("unhandledrejection", le), T();
   for (const e of f) Z(e);
-  return o.post({ channel: "ply-vis", version: 1, type: "ready" }), f.length || o.post({ channel: "ply-vis", version: 1, type: "request-artifact" }), { load: Z, getState: () => c, destroy: () => {
-    D(), window.removeEventListener("message", de), window.removeEventListener("error", le), window.removeEventListener("unhandledrejection", fe), t.replaceChildren();
+  return o.post({ channel: "ply-vis", version: 1, type: "ready" }), f.length || o.post({ channel: "ply-vis", version: 1, type: "request-artifact" }), { load: Z, getState: () => d, destroy: () => {
+    V(), window.removeEventListener("message", ae), window.removeEventListener("error", ce), window.removeEventListener("unhandledrejection", le), t.replaceChildren();
   } };
 }
-const Pe = "default-src 'none'; img-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
+const Fe = "default-src 'none'; img-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
 export {
-  Pe as CONTENT_SECURITY_POLICY,
+  Fe as CONTENT_SECURITY_POLICY,
   v as EnvelopeError,
-  Me as HOST_PROTOCOL_VERSION,
-  Ze as PROTOCOL_VERSION,
-  Ve as initialViewState,
-  Re as isHostResponse,
-  Fe as mountViewer,
-  Ce as parseEnvelope,
-  Ne as sanitizeSvg,
-  me as updateViewState,
-  _e as windowHostBridge
+  Ne as HOST_PROTOCOL_VERSION,
+  Xe as PROTOCOL_VERSION,
+  Me as initialViewState,
+  qe as isHostResponse,
+  _e as mountViewer,
+  Le as parseEnvelope,
+  je as sanitizeSvg,
+  ue as updateViewState,
+  Ze as windowHostBridge
 };
 //# sourceMappingURL=index.js.map
