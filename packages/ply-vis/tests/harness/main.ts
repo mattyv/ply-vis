@@ -1,5 +1,6 @@
 import fixtureText from '../fixtures/canonical-v1.json?raw';
 import realPlyRenderText from '../fixtures/real-ply-render.json?raw';
+import plySelfRenderText from '../fixtures/ply-self-render.json?raw';
 import { mountViewer, type HostRequest, type VisualEnvelope } from '../../src';
 
 const fixture = JSON.parse(fixtureText) as VisualEnvelope;
@@ -22,5 +23,9 @@ function makeLargeFixture(componentCount = 500, functionsPerComponent = 10): Vis
 }
 
 const realPlyRender = JSON.parse(realPlyRenderText) as VisualEnvelope;
+// Ply's own architecture, two levels deep: six crates, seven modules inside
+// two of them. Regenerate with `cargo ply render ply.yaml --json` from the
+// ply repository root.
+const plySelfRender = JSON.parse(plySelfRenderText) as VisualEnvelope;
 
-Object.assign(window, { viewer, messages, fixture, makeLargeFixture, realPlyRender });
+Object.assign(window, { viewer, messages, fixture, makeLargeFixture, realPlyRender, plySelfRender });

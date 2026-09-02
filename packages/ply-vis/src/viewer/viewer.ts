@@ -103,9 +103,16 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   function renderBreadcrumbs() {
     breadcrumbs.replaceChildren();
     if (!active) return;
+    // The walk stops before the outermost box on purpose. Going into a box
+    // with no parent is already defined as showing the whole drawing, so a
+    // crumb for it would be a second button doing exactly what the
+    // "Workspace" one below does. Ply's own architecture made that visible by
+    // naming its outermost box `workspace`: the trail read "Workspace >
+    // workspace > core > kernel", offering the reader a step that is not a
+    // step.
     const trail: VisualElement[] = [];
     let current = state.focusedId ? active.elements[state.focusedId] : undefined;
-    while (current) { trail.unshift(current); current = current.parentId ? active.elements[current.parentId] : undefined; }
+    while (current?.parentId) { trail.unshift(current); current = active.elements[current.parentId]; }
     const all = document.createElement('button'); all.type = 'button'; all.textContent = 'Workspace'; all.dataset.focusId = ''; breadcrumbs.append(all);
     for (const element of trail) { const button = document.createElement('button'); button.type = 'button'; button.textContent = element.label; button.dataset.focusId = element.id; breadcrumbs.append(button); }
   }
@@ -373,6 +380,12 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   function focus(id?: string) {
     if (id && !active?.elements[id]) return;
     if (id && !active!.elements[id]!.parentId) id = undefined;
+    // Going into or out of a box refits the whole drawing, so a tooltip
+    // raised by hovering describes a box that is no longer where the pointer
+    // is. Leaving it up also swallowed the reader's next Escape -- the one
+    // meant to come back out -- and put the tooltip straight back on the next
+    // mouse move, so coming back out looked like a key that does nothing.
+    hideTooltip();
     setState({ focusedId: id, selectedId: id, detailsHidden: !id });
     renderDetailsVisibility(); applyVisibility(); renderInspector(id ? active?.elements[id] : undefined); fit();
   }
