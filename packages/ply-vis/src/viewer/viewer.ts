@@ -50,6 +50,8 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const breadcrumbs = root.querySelector<HTMLElement>('.ply-breadcrumbs')!;
   let state = initialViewState();
   let active: VisualEnvelope | undefined;
+  /** Which folded drawing is on the stage, or `undefined` for the full one. */
+  let paintedDepth: number | undefined;
   let drag: { x: number; y: number; panX: number; panY: number; pointerId: number; moved: boolean } | undefined;
   let suppressClickUntil = 0;
   let tooltipTarget: SVGElement | undefined;
@@ -266,6 +268,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
 
   function applyVisibility() {
     if (!active) return;
+    syncDrawing();
     const nodes = [...stage.querySelectorAll<SVGElement>('[data-element-id], [data-ply-id]')];
     const focused = state.focusedId ? active.elements[state.focusedId] : undefined;
     for (const node of nodes) {
@@ -333,7 +336,18 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     if (!hasEvidence) setDetailsHidden(true, false);
     renderDetailsVisibility();
     hideTooltip();
-    stage.innerHTML = envelope.svg;
+    paintedDepth = undefined;
+    paintDrawing(envelope.svg);
+    canvas.dataset.empty = 'false';
+    const empty = canvas.querySelector('.ply-empty'); if (empty) empty.remove();
+    applyVisibility(); transform(); renderInspector(state.selectedId ? envelope.elements[state.selectedId] : undefined);
+    status.textContent = envelope.run.tool.version === 'render' ? 'Rendered Ply spec' : `Showing run ${envelope.run.id}`;
+    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(() => fit(false));
+  }
+
+  /** Put one drawing on the stage and prepare the nodes in it. */
+  function paintDrawing(svg: string) {
+    stage.innerHTML = svg;
     for (const title of [...stage.querySelectorAll('title')]) {
       const parent = title.parentElement;
       const target = parent?.closest<SVGElement>('[data-element-id], [data-ply-id]')
@@ -349,17 +363,52 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       }
       title.remove();
     }
-    canvas.dataset.empty = 'false';
-    const empty = canvas.querySelector('.ply-empty'); if (empty) empty.remove();
-    applyVisibility(); transform(); renderInspector(state.selectedId ? envelope.elements[state.selectedId] : undefined);
-    status.textContent = envelope.run.tool.version === 'render' ? 'Rendered Ply spec' : `Showing run ${envelope.run.id}`;
-    if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(() => fit(false));
+  }
+
+  /**
+   * Show the drawing that matches how much detail is wanted right now.
+   *
+   * Hiding boxes inside the full drawing was the obvious way to do this and
+   * the wrong one: the boxes around them keep the size their contents needed,
+   * so pulling back for less detail hands the reader large empty rectangles.
+   * Ply draws the document again at each level instead, properly laid out,
+   * and sends those along in the envelope. Falls back to the full drawing
+   * when the envelope offers nothing for this level -- which is every
+   * document that does not nest, and any envelope from before Ply sent them.
+   */
+  function syncDrawing() {
+    if (!active) return;
+    const wanted = state.focusedId ? undefined : drawingDepth();
+    if (wanted === paintedDepth) return;
+    const drawing = wanted === undefined
+      ? active.svg
+      : active.folded.find((candidate) => candidate.depth === wanted)?.svg;
+    if (!drawing) { paintedDepth = wanted; return; }
+    hideTooltip();
+    paintDrawing(drawing);
+    paintedDepth = wanted;
+  }
+
+  /**
+   * The level to draw at, or `undefined` for the whole document. Only levels
+   * the envelope actually offers are asked for, so a document that does not
+   * nest never leaves the full drawing.
+   */
+  function drawingDepth(): number | undefined {
+    if (!active) return undefined;
+    const wanted = visibleDetailDepth();
+    if (!Number.isFinite(wanted)) return undefined;
+    return active.folded.some((candidate) => candidate.depth === wanted) ? wanted : undefined;
   }
 
   function load(value: unknown): boolean {
     try {
       const parsed = parseEnvelope(value);
-      const envelope = Object.freeze({ ...parsed, svg: sanitizeSvg(parsed.svg) });
+      const envelope = Object.freeze({
+        ...parsed,
+        svg: sanitizeSvg(parsed.svg),
+        folded: Object.freeze(parsed.folded.map((drawing) => Object.freeze({ depth: drawing.depth, svg: sanitizeSvg(drawing.svg) }))),
+      });
       show(envelope);
       delete root.dataset.error;
       return true;

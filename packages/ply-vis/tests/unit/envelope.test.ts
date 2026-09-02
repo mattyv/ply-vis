@@ -31,3 +31,26 @@ describe('VisualEnvelope v1', () => {
     expect(parseEnvelope(value).elements.function?.label).toBe('settle');
   });
 });
+
+describe('shorter drawings for less detail', () => {
+  const base = {
+    protocolVersion: 1,
+    run: { id: 'r', completedAt: '2026-09-02T00:00:00Z', root: { path: '.' }, tool: { name: 'ply', version: 't' }, outcome: 'clean' },
+    svg: '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+    elements: {},
+    diagnostics: [],
+  };
+
+  it('keeps the drawing offered for each level a reader can fold to', () => {
+    const parsed = parseEnvelope({ ...base, folded: [{ depth: 1, svg: '<svg xmlns="http://www.w3.org/2000/svg" id="one"></svg>' }] });
+    expect(parsed.folded).toEqual([{ depth: 1, svg: '<svg xmlns="http://www.w3.org/2000/svg" id="one"></svg>' }]);
+  });
+
+  it('reads an envelope that offers none, because most documents do not nest', () => {
+    expect(parseEnvelope(base).folded).toEqual([]);
+  });
+
+  it('refuses a level that selects nothing, rather than drawing an empty picture', () => {
+    expect(() => parseEnvelope({ ...base, folded: [{ depth: 0, svg: '<svg/>' }] })).toThrow();
+  });
+});

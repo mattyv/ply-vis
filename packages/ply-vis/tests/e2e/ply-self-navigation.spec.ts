@@ -195,3 +195,30 @@ test('the trail says where you are, and Escape comes back out one level', async 
   const { labels } = await onScreen(page);
   expect(labels, 'back out in `core`, the sibling module `engines` should be on screen again').toContain('engines');
 });
+
+test('a box whose contents are folded away is no taller than one that never had any', async ({ page }) => {
+  // The point of pulling back is to see the shape without the fine print. A
+  // viewer that folds by hiding parts of the full drawing leaves every box at
+  // the size its hidden contents needed, so `core` and `cli` become large
+  // empty rectangles -- more of the screen given to less information, which
+  // is the opposite of what the reader asked for. `e2e` is the control: it
+  // has never held anything, so its height is what a box with nothing in it
+  // is supposed to look like.
+  await open(page);
+  await zoomOutTo(page, 0.7);
+  const heights = await page.evaluate(() => {
+    const elements = (window as any).plySelfRender.elements as Record<string, any>;
+    const heightOf = (label: string) => {
+      const target = (Object.values(elements) as any[]).find((element) => element.label === label);
+      return document.querySelector(`[data-element-id="${target.id}"]`)!.getBoundingClientRect().height;
+    };
+    return { core: heightOf('core'), cli: heightOf('cli'), e2e: heightOf('e2e') };
+  });
+  for (const [label, height] of [['core', heights.core], ['cli', heights.cli]] as const) {
+    expect(
+      height,
+      `\`${label}\` has nothing on screen inside it now, so it should be about as tall as ` +
+        `\`e2e\` (${Math.round(heights.e2e)}px), not ${Math.round(height)}px of empty box`,
+    ).toBeLessThan(heights.e2e * 1.5);
+  }
+});
