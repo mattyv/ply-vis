@@ -187,6 +187,20 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     else node.removeAttribute('aria-describedby');
   }
 
+  /**
+   * Whether the tooltip itself still has room to scroll in the direction of
+   * this wheel event. The tooltip is scrollable (`.ply-tooltip` has
+   * `overflow: auto`) so a wheel over it must scroll its own content while
+   * that's possible -- but once it fits, or is already at that edge, the wheel
+   * has to fall through to the canvas so scrolling to zoom still works.
+   */
+  function tooltipCanScrollFurther(deltaY: number): boolean {
+    if (tooltip.scrollHeight <= tooltip.clientHeight) return false;
+    if (deltaY > 0) return tooltip.scrollTop + tooltip.clientHeight < tooltip.scrollHeight;
+    if (deltaY < 0) return tooltip.scrollTop > 0;
+    return false;
+  }
+
   function cancelTooltipTimer() {
     if (tooltipTimer !== undefined) window.clearTimeout(tooltipTimer);
     tooltipTimer = undefined;
@@ -449,6 +463,9 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       : { x: canvasRect.width / 2, y: canvasRect.height / 2 };
   }
   function setZoom(zoom: number, anchor = zoomAnchor()) {
+    // A tooltip positioned for the old zoom would otherwise sit over the
+    // wrong part of the drawing once the zoom changes.
+    hideTooltip();
     setState(zoomAt(state, Math.min(4, Math.max(0.2, zoom)), anchor)); applyVisibility(); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`;
   }
   function fit(announce = true) {
@@ -514,7 +531,16 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   tooltip.addEventListener('pointerleave', (event) => {
     if (!(event.relatedTarget instanceof Node && tooltipTarget?.contains(event.relatedTarget))) hideTooltip();
   });
-  tooltip.addEventListener('wheel', (event) => event.stopPropagation());
+  tooltip.addEventListener('wheel', (event) => {
+    // Scroll-chain like a normal nested-scroll box: keep the wheel for the
+    // tooltip's own content while it can still move, so long tooltips stay
+    // readable. Once it can't scroll any further, let the wheel through to
+    // the canvas so scrolling to zoom keeps working, and get the tooltip out
+    // of the way -- it was positioned for what the reader was hovering
+    // before, not for the drawing they're now zooming.
+    if (tooltipCanScrollFurther(event.deltaY)) { event.stopPropagation(); return; }
+    hideTooltip();
+  }, { passive: true });
   tooltip.addEventListener('pointerdown', (event) => event.stopPropagation());
   canvas.addEventListener('wheel', (event) => {
     event.preventDefault();

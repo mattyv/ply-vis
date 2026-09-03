@@ -49,4 +49,27 @@ describe('viewer framing', () => {
     expect(fn.hasAttribute('hidden')).toBe(false);
     viewer.destroy();
   });
+
+  it('hides a tooltip left open from hovering when the toolbar zoom buttons are used', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    viewer.load({
+      protocolVersion: 1,
+      run: { id: 'zoom-hides-tooltip', completedAt: '2026-09-01T00:00:00Z', root: { path: '.' }, tool: { name: 'ply', version: 'render' }, outcome: 'clean' },
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><g data-element-id="fn"><title>Some details</title><rect width="10" height="10"/></g></svg>',
+      elements: {}, diagnostics: [],
+    });
+    const node = container.querySelector<SVGElement>('[data-element-id="fn"]')!;
+    const tooltip = container.querySelector<HTMLElement>('.ply-tooltip')!;
+    // focusin shows the tooltip immediately, with no hover delay to fake.
+    node.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(tooltip.hidden).toBe(false);
+
+    container.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+
+    expect(viewer.getState().zoom).toBeGreaterThan(1);
+    expect(tooltip.hidden).toBe(true);
+    viewer.destroy();
+  });
 });
