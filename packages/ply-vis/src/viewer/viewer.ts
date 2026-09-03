@@ -175,6 +175,30 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     return target instanceof Element ? target.closest<SVGElement>('[data-element-id], [data-ply-id], [data-ply-title]') ?? undefined : undefined;
   }
 
+  /**
+   * True for a focus a keyboard user would see a ring for, false for one a
+   * pointer left behind. Browsers expose exactly this distinction as
+   * `:focus-visible` -- Tab lands on `true`, a mouse click on a focusable
+   * item lands on `false` -- which is what the `focusin` listener below
+   * needs: clicking an item also focuses it (items are focusable so Tab can
+   * reach them), and without this check that click-triggered focus was
+   * popping the tooltip even with hover switched off.
+   *
+   * A browser old enough not to recognise the selector throws a
+   * `SyntaxError` from `matches()` rather than answering `false`. When that
+   * happens we can't tell pointer from keyboard focus at all, so we fall
+   * back to `true` -- the side that keeps the accessibility guarantee (Tab
+   * still shows the tooltip) rather than the side that would quietly
+   * reopen this bug.
+   */
+  function isFocusVisible(node: Element): boolean {
+    try {
+      return node.matches(':focus-visible');
+    } catch {
+      return true;
+    }
+  }
+
   function elementForNode(node: SVGElement): VisualElement | undefined {
     const id = node.dataset.elementId ?? node.dataset.plyId;
     return id ? active?.elements[id] : undefined;
@@ -637,7 +661,17 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     if (!node || (event.relatedTarget instanceof Node && (node.contains(event.relatedTarget) || tooltip.contains(event.relatedTarget)))) return;
     if (!node.contains(document.activeElement)) hideTooltip();
   });
-  stage.addEventListener('focusin', (event) => { const node = tooltipNode(event.target); if (node) { cancelTooltipTimer(); showTooltip(node); } });
+  stage.addEventListener('focusin', (event) => {
+    const node = tooltipNode(event.target);
+    if (!node) return;
+    // Keyboard focus is exempt from the hover setting because it has no
+    // other way to reach the same information -- but a mouse click also
+    // focuses the item it lands on, and that click-triggered focus is not
+    // the exemption this was meant for.
+    if (!state.hoverTooltips && !isFocusVisible(node)) return;
+    cancelTooltipTimer();
+    showTooltip(node);
+  });
   stage.addEventListener('focusout', (event) => {
     const node = tooltipNode(event.target);
     if (!node || (event.relatedTarget instanceof Node && node.contains(event.relatedTarget))) return;

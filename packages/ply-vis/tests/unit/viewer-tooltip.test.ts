@@ -30,6 +30,36 @@ function uncheck(toggle: HTMLInputElement) {
   toggle.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+/**
+ * Simulates a real browser focusing a clicked, focusable item: the browser
+ * moves focus there but marks it as NOT `:focus-visible` (a mouse click
+ * never earns a focus ring). jsdom's selector engine doesn't implement that
+ * distinction -- `matches(':focus-visible')` there just mirrors `:focus`,
+ * true for any focused element no matter how it got focused -- so calling
+ * `.focus()` alone here would not reproduce the click case at all. The
+ * `matches` stub answers `:focus-visible` the way a real browser would for
+ * a click, so the test exercises the app's real branching logic (the
+ * `isFocusVisible` check in viewer.ts) rather than jsdom's inaccurate stand-in
+ * for it.
+ */
+function focusByClick(node: SVGElement) {
+  const real = node.matches.bind(node);
+  vi.spyOn(node, 'matches').mockImplementation((selector: string) => (selector === ':focus-visible' ? false : real(selector)));
+  node.focus();
+  node.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+  node.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+}
+
+/**
+ * Simulates Tab landing on an item. Unlike the click case, jsdom's
+ * `:focus-visible` (really just `:focus`) already agrees with a real
+ * browser here -- both report `true` -- so no stubbing is needed.
+ */
+function focusByKeyboard(node: SVGElement) {
+  node.focus();
+  node.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+}
+
 function mountWithHoveredTooltip() {
   const { viewer, tooltip, node, hoverToggle } = mountWithNode();
   hover(node);
@@ -148,7 +178,43 @@ describe('the "Show tooltips on hover" setting', () => {
     vi.useFakeTimers();
     const { tooltip, node, hoverToggle } = mountWithNode();
     uncheck(hoverToggle);
-    node.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    focusByKeyboard(node);
+    expect(tooltip.hidden).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('does NOT show a tooltip when a mouse click focuses an item, even though the click also fires focusin (the reported bug)', () => {
+    vi.useFakeTimers();
+    const { tooltip, node, hoverToggle } = mountWithNode();
+    uncheck(hoverToggle);
+    focusByClick(node);
+    expect(tooltip.hidden).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('does not wire an accessible description to the item on a click focus, matching the hidden tooltip', () => {
+    vi.useFakeTimers();
+    const { node, hoverToggle } = mountWithNode();
+    uncheck(hoverToggle);
+    focusByClick(node);
+    expect(node.hasAttribute('aria-describedby')).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('still wires an accessible description to the item on keyboard focus, even when hover is switched off', () => {
+    vi.useFakeTimers();
+    const { tooltip, node, hoverToggle } = mountWithNode();
+    uncheck(hoverToggle);
+    focusByKeyboard(node);
+    expect(node.getAttribute('aria-describedby')).toBe(tooltip.id);
+    vi.useRealTimers();
+  });
+
+  it('shows the tooltip on a click focus when hover is switched on, unchanged from before this setting existed', () => {
+    vi.useFakeTimers();
+    const { tooltip, node, hoverToggle } = mountWithNode();
+    expect(hoverToggle.checked).toBe(true);
+    focusByClick(node);
     expect(tooltip.hidden).toBe(false);
     vi.useRealTimers();
   });
@@ -165,8 +231,7 @@ describe('the "Show tooltips on hover" setting', () => {
   it('does not hide a tooltip that keyboard focus put on screen', () => {
     vi.useFakeTimers();
     const { tooltip, node, hoverToggle } = mountWithNode();
-    node.focus();
-    node.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    focusByKeyboard(node);
     expect(tooltip.hidden).toBe(false);
     uncheck(hoverToggle);
     expect(tooltip.hidden).toBe(false);
