@@ -28,6 +28,7 @@ const html = `
       <main class="ply-canvas" tabindex="0" aria-label="Architecture canvas. Use arrow keys to move between items and Enter to inspect." data-empty="true">
         <div class="ply-stage"></div>
         <div class="ply-tooltip" id="ply-vis-tooltip" role="tooltip" hidden></div>
+        <ul class="ply-context-menu" id="ply-vis-context-menu" role="menu" aria-label="Zoom options" hidden></ul>
         <p class="ply-empty">Waiting for a visual artifact…</p>
       </main>
       <button type="button" class="ply-inspector-toggle" aria-label="Show details" title="Show details" aria-controls="ply-inspector" aria-expanded="false">‹</button>
@@ -42,6 +43,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const canvas = root.querySelector<HTMLElement>('.ply-canvas')!;
   const stage = root.querySelector<HTMLElement>('.ply-stage')!;
   const tooltip = root.querySelector<HTMLElement>('.ply-tooltip')!;
+  const contextMenu = root.querySelector<HTMLElement>('.ply-context-menu')!;
   const inspector = root.querySelector<HTMLElement>('.ply-inspector')!;
   const inspectorToggle = root.querySelector<HTMLButtonElement>('.ply-inspector-toggle')!;
   const workspace = root.querySelector<HTMLElement>('.ply-workspace')!;
@@ -56,6 +58,8 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   let suppressClickUntil = 0;
   let tooltipTarget: SVGElement | undefined;
   let tooltipTimer: number | undefined;
+  /** What had focus before the context menu opened, so Escape can hand it back. */
+  let menuInvoker: HTMLElement | SVGElement | undefined;
 
   const postState = () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'persist-state', state });
   const setState = (patch: Partial<ViewState>, persist = true) => { state = updateViewState(state, patch); if (persist) postState(); };
@@ -280,6 +284,88 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     }, TOOLTIP_DELAY_MS);
   }
 
+  /** Keep a small floating panel inside the canvas, the same way `positionTooltip` does. */
+  function positionWithinCanvas(panel: HTMLElement, clientX: number, clientY: number) {
+    const canvasRect = canvas.getBoundingClientRect();
+    const margin = 8;
+    const maxLeft = Math.max(margin, canvasRect.width - panel.offsetWidth - margin);
+    const maxTop = Math.max(margin, canvasRect.height - panel.offsetHeight - margin);
+    panel.style.left = `${Math.min(maxLeft, Math.max(margin, clientX - canvasRect.left))}px`;
+    panel.style.top = `${Math.min(maxTop, Math.max(margin, clientY - canvasRect.top))}px`;
+  }
+
+  function hideContextMenu() {
+    if (contextMenu.hidden) return;
+    // Only steal focus back if it was actually inside the menu -- if the
+    // reader already clicked or tabbed somewhere else, leave it where it is.
+    const focusWasInMenu = contextMenu.contains(document.activeElement);
+    const invoker = menuInvoker;
+    contextMenu.hidden = true;
+    contextMenu.replaceChildren();
+    menuInvoker = undefined;
+    if (focusWasInMenu) (invoker?.isConnected ? invoker : canvas).focus();
+  }
+
+  function menuItems(): HTMLButtonElement[] {
+    return [...contextMenu.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]')];
+  }
+
+  function focusMenuItem(index: number) {
+    const items = menuItems();
+    if (!items.length) return;
+    for (const item of items) item.tabIndex = -1;
+    const target = items[(index + items.length) % items.length]!;
+    target.tabIndex = 0;
+    target.focus();
+  }
+
+  /**
+   * Right-click's semantic-zoom menu. Offers to zoom into whatever is under
+   * the cursor (matching double-click) plus, when the reader is already
+   * zoomed in, a way back out worded like the "Workspace" breadcrumb so the
+   * two don't invent separate vocabulary for the same idea. When neither
+   * applies -- an empty canvas with nothing to zoom out of -- no menu opens
+   * and the editor's own context menu is left alone rather than suppressed
+   * for nothing.
+   */
+  function openContextMenu(event: MouseEvent) {
+    const node = event.target instanceof Element ? event.target.closest<SVGElement>('[data-element-id], [data-ply-id]') : null;
+    const element = node ? elementForNode(node) : undefined;
+    const entries: Array<{ label: string; run: () => void }> = [];
+    if (element) entries.push({ label: `Zoom into ${element.label}`, run: () => focus(element.id) });
+    if (state.focusedId) entries.push({ label: 'Back to Workspace', run: () => focus(undefined) });
+    if (!entries.length) return;
+
+    event.preventDefault();
+    hideTooltip();
+    const previousFocus = document.activeElement;
+    menuInvoker = previousFocus instanceof HTMLElement || previousFocus instanceof SVGElement ? previousFocus : undefined;
+    contextMenu.replaceChildren();
+    for (const entry of entries) {
+      const item = document.createElement('li'); item.setAttribute('role', 'presentation');
+      const button = document.createElement('button');
+      button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = entry.label; button.tabIndex = -1;
+      button.addEventListener('click', () => { hideContextMenu(); entry.run(); });
+      item.append(button); contextMenu.append(item);
+    }
+    contextMenu.hidden = false;
+    positionWithinCanvas(contextMenu, event.clientX, event.clientY);
+    focusMenuItem(0);
+  }
+
+  contextMenu.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { event.preventDefault(); hideContextMenu(); return; }
+    const items = menuItems();
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === 'ArrowDown') { event.preventDefault(); focusMenuItem(current + 1); }
+    else if (event.key === 'ArrowUp') { event.preventDefault(); focusMenuItem(current - 1); }
+  });
+  canvas.addEventListener('contextmenu', openContextMenu);
+  const closeMenuOnOutsidePointer = (event: PointerEvent | MouseEvent) => {
+    if (!contextMenu.hidden && event.target instanceof Node && !contextMenu.contains(event.target)) hideContextMenu();
+  };
+  window.addEventListener('pointerdown', closeMenuOnOutsidePointer);
+
   function applyVisibility() {
     if (!active) return;
     syncDrawing();
@@ -357,6 +443,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     if (!hasEvidence) setDetailsHidden(true, false);
     renderDetailsVisibility();
     hideTooltip();
+    hideContextMenu();
     paintedDepth = undefined;
     paintDrawing(envelope.svg);
     canvas.dataset.empty = 'false';
@@ -406,6 +493,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       : active.folded.find((candidate) => candidate.depth === wanted)?.svg;
     if (!drawing) { paintedDepth = wanted; return; }
     hideTooltip();
+    hideContextMenu();
     paintDrawing(drawing);
     paintedDepth = wanted;
   }
@@ -456,6 +544,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     // meant to come back out -- and put the tooltip straight back on the next
     // mouse move, so coming back out looked like a key that does nothing.
     hideTooltip();
+    hideContextMenu();
     setState({ focusedId: id, selectedId: id, detailsHidden: !id });
     renderDetailsVisibility(); applyVisibility(); renderInspector(id ? active?.elements[id] : undefined); fit();
   }
@@ -470,9 +559,10 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       : { x: canvasRect.width / 2, y: canvasRect.height / 2 };
   }
   function setZoom(zoom: number, anchor = zoomAnchor()) {
-    // A tooltip positioned for the old zoom would otherwise sit over the
-    // wrong part of the drawing once the zoom changes.
+    // A tooltip -- or a context menu -- positioned for the old zoom would
+    // otherwise sit over the wrong part of the drawing once the zoom changes.
     hideTooltip();
+    hideContextMenu();
     setState(zoomAt(state, Math.min(4, Math.max(0.2, zoom)), anchor)); applyVisibility(); transform(); status.textContent = `Zoom ${Math.round(state.zoom * 100)}%`;
   }
   function fit(announce = true) {
@@ -614,5 +704,5 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   bridge.post({ channel: 'ply-vis', version: 1, type: 'ready' });
   if (!initialEnvelopes.length) bridge.post({ channel: 'ply-vis', version: 1, type: 'request-artifact' });
 
-  return { load, getState: () => state, destroy: () => { cancelTooltipTimer(); window.removeEventListener('message', receive); window.removeEventListener('error', receiveError); window.removeEventListener('unhandledrejection', receiveRejection); container.replaceChildren(); } };
+  return { load, getState: () => state, destroy: () => { cancelTooltipTimer(); window.removeEventListener('message', receive); window.removeEventListener('error', receiveError); window.removeEventListener('unhandledrejection', receiveRejection); window.removeEventListener('pointerdown', closeMenuOnOutsidePointer); container.replaceChildren(); } };
 }

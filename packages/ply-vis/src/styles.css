@@ -25,6 +25,9 @@ button:focus-visible, select:focus-visible, input:focus-visible, .ply-canvas:foc
 .ply-tooltip strong, .ply-tooltip span { display: block; }
 .ply-tooltip strong { margin-block-end: .2rem; }
 .ply-tooltip span { white-space: pre-line; font-size: .875rem; line-height: 1.35; }
+.ply-context-menu { position: absolute; z-index: 12; margin: 0; padding: .3rem; min-inline-size: 11rem; list-style: none; border: 1px solid var(--line); border-radius: .4rem; color: var(--ink); background: var(--panel); box-shadow: 0 .35rem 1rem rgb(15 23 42 / .24); cursor: auto; }
+.ply-context-menu button { display: block; inline-size: 100%; text-align: left; border: 0; border-radius: .3rem; padding: .4rem .6rem; background: transparent; }
+.ply-context-menu button:hover, .ply-context-menu button:focus-visible { background: #175cd3; color: #fff; outline: none; }
 .ply-empty { padding: 2rem; }
 .ply-inspector { min-height: 0; padding: 1rem; overflow: auto; border-left: 1px solid var(--line); background: var(--panel); }
 .ply-inspector-toggle { position: absolute; z-index: 11; top: 50%; right: calc(var(--details-width) - .7rem); width: 1.4rem; min-height: 3.5rem; padding: 0; transform: translateY(-50%); border-radius: .7rem 0 0 .7rem; background: var(--panel); }
