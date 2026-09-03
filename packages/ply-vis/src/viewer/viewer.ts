@@ -16,6 +16,7 @@ const html = `
       </div>
       <fieldset><legend>Detail</legend>
         <label><input type="checkbox" data-fold-detail checked> Fold detail when zoomed out</label>
+        <label><input type="checkbox" data-hover-tooltips checked> Show tooltips on hover</label>
       </fieldset>
       <fieldset><legend>Overlays</legend>
         <label><input type="checkbox" data-overlay="earned" checked> Earned</label>
@@ -601,14 +602,31 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       ? 'Detail folds away as you zoom out'
       : 'Detail stays on screen at every zoom';
   });
+  root.querySelector<HTMLInputElement>('[data-hover-tooltips]')!.addEventListener('change', (event) => {
+    const hoverTooltips = (event.target as HTMLInputElement).checked;
+    setState({ hoverTooltips });
+    if (!hoverTooltips) {
+      cancelTooltipTimer();
+      // A tooltip already on screen from keyboard focus is untouched -- this
+      // setting only ever silenced the hover path, so it has no say over one.
+      if (tooltipTarget && document.activeElement !== tooltipTarget) hideTooltip();
+    }
+    status.textContent = hoverTooltips
+      ? 'Tooltips appear on hover'
+      : 'Tooltips stay hidden on hover; tabbing to an item still shows one';
+  });
   breadcrumbs.addEventListener('click', (event) => { const target = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-focus-id]'); if (target) focus(target.dataset.focusId || undefined); });
   stage.addEventListener('click', (event) => {
     if (performance.now() < suppressClickUntil) return;
     const node = (event.target as Element).closest<SVGElement>('[data-element-id], [data-ply-id]'); const id = node?.dataset.elementId ?? node?.dataset.plyId; if (id) select(id);
   });
   stage.addEventListener('dblclick', (event) => { const node = (event.target as Element).closest<SVGElement>('[data-element-id], [data-ply-id]'); const id = node?.dataset.elementId ?? node?.dataset.plyId; if (id) focus(id); });
-  stage.addEventListener('pointerover', (event) => { const node = tooltipNode(event.target); if (node) scheduleTooltip(node, event.clientX, event.clientY); });
+  stage.addEventListener('pointerover', (event) => {
+    if (!state.hoverTooltips) return;
+    const node = tooltipNode(event.target); if (node) scheduleTooltip(node, event.clientX, event.clientY);
+  });
   stage.addEventListener('pointermove', (event) => {
+    if (!state.hoverTooltips) { cancelTooltipTimer(); return; }
     const node = tooltipNode(event.target);
     if (!node) { cancelTooltipTimer(); return; }
     if (node === tooltipTarget && !tooltip.hidden) positionTooltip(event.clientX, event.clientY);
@@ -687,6 +705,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       state = updateViewState(state, event.data.state);
       root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => { input.checked = state.overlays[input.dataset.overlay as keyof ViewState['overlays']]; });
       root.querySelector<HTMLInputElement>('[data-fold-detail]')!.checked = state.foldDetail;
+      root.querySelector<HTMLInputElement>('[data-hover-tooltips]')!.checked = state.hoverTooltips;
       if (active) { renderDetailsVisibility(); applyVisibility(); transform(); renderInspector(state.selectedId ? active.elements[state.selectedId] : undefined); }
     }
   };

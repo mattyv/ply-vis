@@ -21,4 +21,20 @@ describe('viewer reopen', () => {
     expect(viewer.getState()).toMatchObject({ runId: 'same', selectedId: undefined, focusedId: undefined, detailsHidden: true, zoom: 1, panX: 0, panY: 0 });
     viewer.destroy();
   });
+
+  it('turns hover tooltips on when restoring state saved before that setting existed', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    // No `hoverTooltips` key at all -- the shape persisted before this setting
+    // was added. Missing must land ON, the same as a first-ever open, not OFF.
+    window.dispatchEvent(new MessageEvent('message', { data: {
+      channel: 'ply-vis', version: 1, type: 'restore-state',
+      state: { runId: 'old', selectedId: undefined, focusedId: undefined, detailsHidden: true, zoom: 1, panX: 0, panY: 0, overlays: { earned: true, gap: true, violation: true } },
+    } }));
+
+    expect(viewer.getState().hoverTooltips).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('[data-hover-tooltips]')!.checked).toBe(true);
+    viewer.destroy();
+  });
 });

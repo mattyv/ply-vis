@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { mountViewer } from '../../src/viewer/viewer';
 
-function mountWithHoveredTooltip() {
+function mountWithNode() {
   const container = document.createElement('div');
   document.body.append(container);
   const viewer = mountViewer(container, { post: () => undefined });
@@ -16,10 +16,24 @@ function mountWithHoveredTooltip() {
   vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({ x: 0, y: 0, left: 0, top: 0, right: 300, bottom: 200, width: 300, height: 200, toJSON: () => ({}) });
   const node = container.querySelector<SVGElement>('[data-element-id="fn"]')!;
   const tooltip = container.querySelector<HTMLElement>('.ply-tooltip')!;
+  const hoverToggle = container.querySelector<HTMLInputElement>('[data-hover-tooltips]')!;
+  return { viewer, tooltip, node, hoverToggle };
+}
 
-  node.dispatchEvent(new MouseEvent('pointerover', { bubbles: true, clientX: 10, clientY: 10 }));
+function hover(node: SVGElement, clientX = 10, clientY = 10) {
+  node.dispatchEvent(new MouseEvent('pointerover', { bubbles: true, clientX, clientY }));
   vi.advanceTimersByTime(500);
-  return { viewer, tooltip };
+}
+
+function uncheck(toggle: HTMLInputElement) {
+  toggle.checked = false;
+  toggle.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function mountWithHoveredTooltip() {
+  const { viewer, tooltip, node, hoverToggle } = mountWithNode();
+  hover(node);
+  return { viewer, tooltip, node, hoverToggle };
 }
 
 /** jsdom does no layout: scrollHeight/clientHeight are 0 unless set explicitly. */
@@ -103,6 +117,59 @@ describe('scrolling a tooltip that has nowhere left to scroll', () => {
     expect(viewer.getState().zoom).toBe(1);
     expect(tooltip.hidden).toBe(false);
     viewer.destroy();
+    vi.useRealTimers();
+  });
+});
+
+// The maintainer's complaint was specifically about the popup that chases the
+// pointer around -- so the checkbox added for it must only silence hover.
+// Keyboard focus has no other way to reach the same information (most of a
+// drawing's detail lives in hover text, not on the canvas), so that path is
+// wired straight past the setting rather than reading it.
+describe('the "Show tooltips on hover" setting', () => {
+  it('is on by default, so hovering an item shows its tooltip', () => {
+    vi.useFakeTimers();
+    const { tooltip, hoverToggle } = mountWithHoveredTooltip();
+    expect(hoverToggle.checked).toBe(true);
+    expect(tooltip.hidden).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('shows no tooltip on hover once switched off', () => {
+    vi.useFakeTimers();
+    const { tooltip, node, hoverToggle } = mountWithNode();
+    uncheck(hoverToggle);
+    hover(node);
+    expect(tooltip.hidden).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('still shows the tooltip on keyboard focus even when hover is switched off', () => {
+    vi.useFakeTimers();
+    const { tooltip, node, hoverToggle } = mountWithNode();
+    uncheck(hoverToggle);
+    node.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(tooltip.hidden).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('hides an open hover tooltip immediately when switched off, without waiting for a pointer move', () => {
+    vi.useFakeTimers();
+    const { tooltip, hoverToggle } = mountWithHoveredTooltip();
+    expect(tooltip.hidden).toBe(false);
+    uncheck(hoverToggle);
+    expect(tooltip.hidden).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('does not hide a tooltip that keyboard focus put on screen', () => {
+    vi.useFakeTimers();
+    const { tooltip, node, hoverToggle } = mountWithNode();
+    node.focus();
+    node.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    expect(tooltip.hidden).toBe(false);
+    uncheck(hoverToggle);
+    expect(tooltip.hidden).toBe(false);
     vi.useRealTimers();
   });
 });
