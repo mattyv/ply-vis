@@ -289,8 +289,15 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       const nodeId = node.dataset.elementId ?? node.dataset.plyId ?? '';
       const element = active.elements[nodeId];
       if (!element) { node.removeAttribute('hidden'); continue; }
+      // Ply publishes the classification explicitly as `evidence.state` (one
+      // of exactly declared/earned/gap/violation) using the same classifier
+      // it uses for its own SVG styling. Only an envelope published before
+      // that field existed falls back to sniffing the verdict/status strings
+      // for the literal words 'gap' and 'earned' — which real verdicts like
+      // `bounded(2)` or `tool_error` never are, so this fallback only ever
+      // reliably catches 'violation'. Keep it solely for old runs.
       const suppliedStates = new Set([element.evidence.verdict, ...element.evidence.statuses]);
-      const stateClass = suppliedStates.has('violation') ? 'violation' : suppliedStates.has('gap') ? 'gap' : suppliedStates.has('earned') ? 'earned' : 'declared';
+      const stateClass = element.evidence.state ?? (suppliedStates.has('violation') ? 'violation' : suppliedStates.has('gap') ? 'gap' : suppliedStates.has('earned') ? 'earned' : 'declared');
       const overlayVisible = stateClass === 'declared' || state.overlays[stateClass];
       const focusAncestor = focused ? isDescendant(focused, element.id, active.elements) : false;
       const focusVisible = !state.focusedId || element.id === state.focusedId || isDescendant(element, state.focusedId, active.elements) || focusAncestor;

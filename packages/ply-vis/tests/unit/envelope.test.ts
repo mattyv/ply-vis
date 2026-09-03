@@ -23,7 +23,16 @@ describe('VisualEnvelope v1', () => {
     ['unknown diagnostic element', { ...fixture, diagnostics: [{ ...fixture.diagnostics[0], elementId: 'missing' }] }],
     ['unsafe source path', { ...fixture, elements: { ...fixture.elements, function: { ...fixture.elements.function, source: { ...fixture.elements.function.source, file: '../Cargo.toml' } } } }],
     ['backwards source range', { ...fixture, elements: { ...fixture.elements, function: { ...fixture.elements.function, source: { file: 'x', startLine: 2, startColumn: 1, endLine: 1, endColumn: 1 } } } }],
+    ['unknown evidence state', { ...fixture, elements: { ...fixture.elements, function: { ...fixture.elements.function, evidence: { ...fixture.elements.function.evidence, state: 'unclaimed' } } } }],
   ])('rejects %s atomically', (_name, value) => expect(() => parseEnvelope(value)).toThrow());
+  it('carries the optional evidence state Ply computes, one of exactly the four published values', () => {
+    const value = structuredClone(fixture);
+    value.elements.function.evidence.state = 'earned';
+    expect(parseEnvelope(value).elements.function?.evidence.state).toBe('earned');
+  });
+  it('reads an older envelope with no evidence state at all', () => {
+    expect(parseEnvelope(fixture).elements.function?.evidence.state).toBeUndefined();
+  });
   it('ignores safe additive element and diagnostic metadata', () => {
     const value = structuredClone(fixture);
     value.elements.function.futureField = { opaque: true };

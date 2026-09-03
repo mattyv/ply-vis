@@ -18,7 +18,7 @@ export interface VisualElement {
   readonly label: string;
   readonly parentId?: string;
   readonly declaration?: string;
-  readonly evidence: Readonly<{ verdict: string; statuses: readonly string[]; reused: boolean; [key: string]: JsonValue }>;
+  readonly evidence: Readonly<{ verdict: string; statuses: readonly string[]; reused: boolean; state?: EvidenceState; [key: string]: JsonValue }>;
   readonly diagnosticIds: readonly string[];
   readonly limitations?: readonly string[];
   readonly source?: SourceLocation;
@@ -72,6 +72,7 @@ const exactKeys = (v: Record<string, unknown>, required: readonly string[], opti
   return required.every((key) => key in v) && Object.keys(v).every((key) => allowed.has(key));
 };
 const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every((item) => typeof item === 'string');
+const EVIDENCE_STATES = new Set<string>(['declared', 'earned', 'gap', 'violation']);
 function cloneJson(value: unknown): JsonValue {
   if (value === null || typeof value === 'boolean' || typeof value === 'string' || typeof value === 'number' && Number.isFinite(value)) return value;
   if (Array.isArray(value)) return Object.freeze(value.map(cloneJson));
@@ -106,7 +107,7 @@ export function parseEnvelope(value: unknown): VisualEnvelope {
   const parsed: Record<string, VisualElement> = {};
   for (const [id, raw] of Object.entries(value.elements)) {
     if (!isRecord(raw) || !['id', 'kind', 'label', 'evidence', 'diagnosticIds'].every((key) => key in raw) || !isRecord(raw.evidence)) throw new EnvelopeError(`Invalid element: ${id}`);
-    if (raw.id !== id || typeof raw.id !== 'string' || !raw.id || typeof raw.kind !== 'string' || !raw.kind || typeof raw.label !== 'string' || !raw.label || typeof raw.evidence.verdict !== 'string' || !strings(raw.evidence.statuses) || typeof raw.evidence.reused !== 'boolean' || !strings(raw.diagnosticIds) || (raw.parentId !== undefined && typeof raw.parentId !== 'string') || (raw.declaration !== undefined && typeof raw.declaration !== 'string') || (raw.limitations !== undefined && !strings(raw.limitations))) throw new EnvelopeError(`Invalid element: ${id}`);
+    if (raw.id !== id || typeof raw.id !== 'string' || !raw.id || typeof raw.kind !== 'string' || !raw.kind || typeof raw.label !== 'string' || !raw.label || typeof raw.evidence.verdict !== 'string' || !strings(raw.evidence.statuses) || typeof raw.evidence.reused !== 'boolean' || (raw.evidence.state !== undefined && !EVIDENCE_STATES.has(raw.evidence.state as string)) || !strings(raw.diagnosticIds) || (raw.parentId !== undefined && typeof raw.parentId !== 'string') || (raw.declaration !== undefined && typeof raw.declaration !== 'string') || (raw.limitations !== undefined && !strings(raw.limitations))) throw new EnvelopeError(`Invalid element: ${id}`);
     const evidence = cloneJson(raw.evidence) as VisualElement['evidence'];
     parsed[id] = Object.freeze({ id, kind: raw.kind, label: raw.label, evidence, diagnosticIds: Object.freeze([...raw.diagnosticIds]), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId as string }), ...(raw.declaration === undefined ? {} : { declaration: raw.declaration as string }), ...(raw.limitations === undefined ? {} : { limitations: Object.freeze([...(raw.limitations as string[])]) }), ...(raw.source === undefined ? {} : { source: parseSource(raw.source)! }) });
   }
