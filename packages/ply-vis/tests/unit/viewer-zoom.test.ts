@@ -50,6 +50,49 @@ describe('viewer framing', () => {
     viewer.destroy();
   });
 
+  it('animates a shared element into its folded drawing', () => {
+    const animateDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'animate');
+    const effectDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'KeyframeEffect');
+    const rectDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'getBoundingClientRect');
+    const calls: Array<{ keyframes: Keyframe[]; options: KeyframeAnimationOptions }> = [];
+    class FakeKeyframeEffect { composite = 'add'; }
+    Object.defineProperty(globalThis, 'KeyframeEffect', { configurable: true, value: FakeKeyframeEffect });
+    Object.defineProperty(Element.prototype, 'animate', { configurable: true, value(keyframes: Keyframe[], options: KeyframeAnimationOptions) {
+      calls.push({ keyframes, options });
+      return { effect: new FakeKeyframeEffect(), cancel() {} } as unknown as Animation;
+    } });
+    Object.defineProperty(Element.prototype, 'getBoundingClientRect', { configurable: true, value() {
+      const folded = this.closest?.('svg')?.id === 'folded';
+      const width = this.matches?.('[data-element-id]') ? (folded ? 50 : 100) : 500;
+      return { x: folded ? 20 : 10, y: 10, left: folded ? 20 : 10, top: 10, width, height: 50, right: (folded ? 20 : 10) + width, bottom: 60, toJSON() {} } as DOMRect;
+    } });
+
+    try {
+      const container = document.createElement('div');
+      document.body.append(container);
+      const viewer = mountViewer(container, { post: () => undefined });
+      const evidence = { verdict: 'unclaimed', statuses: [], reused: false };
+      viewer.load({
+        protocolVersion: 1,
+        run: { id: 'fold-animation', completedAt: '2026-09-01T00:00:00Z', root: { path: '.' }, tool: { name: 'ply', version: 'render' }, outcome: 'clean' },
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" id="full"><g data-element-id="component"><rect width="100" height="50"/></g></svg>',
+        folded: [{ depth: 1, svg: '<svg xmlns="http://www.w3.org/2000/svg" id="folded"><g data-element-id="component"><rect width="50" height="50"/></g></svg>' }],
+        elements: { component: { id: 'component', kind: 'component', label: 'component', evidence, diagnosticIds: [] } }, diagnostics: [],
+      });
+
+      container.querySelector<HTMLElement>('.ply-canvas')!.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1000 }));
+
+      expect(container.querySelector('svg')?.id).toBe('folded');
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.options).toMatchObject({ duration: 160, composite: 'add' });
+      viewer.destroy();
+    } finally {
+      if (animateDescriptor) Object.defineProperty(Element.prototype, 'animate', animateDescriptor); else delete (Element.prototype as Partial<Element>).animate;
+      if (effectDescriptor) Object.defineProperty(globalThis, 'KeyframeEffect', effectDescriptor); else delete (globalThis as Partial<typeof globalThis>).KeyframeEffect;
+      if (rectDescriptor) Object.defineProperty(Element.prototype, 'getBoundingClientRect', rectDescriptor);
+    }
+  });
+
   it('hides a tooltip left open from hovering when the toolbar zoom buttons are used', () => {
     const container = document.createElement('div');
     document.body.append(container);

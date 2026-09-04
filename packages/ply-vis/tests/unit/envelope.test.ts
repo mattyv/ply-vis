@@ -33,6 +33,20 @@ describe('VisualEnvelope v1', () => {
   it('reads an older envelope with no evidence state at all', () => {
     expect(parseEnvelope(fixture).elements.function?.evidence.state).toBeUndefined();
   });
+  it('parses a strict immutable edge index without breaking older v1 envelopes', () => {
+    const value = structuredClone(fixture);
+    value.edges = [{ id: 'component-calls-function', fromId: 'component', toId: 'function', kind: 'call', label: 'calls' }];
+    const parsed = parseEnvelope(value);
+
+    expect(parsed.edges).toEqual(value.edges);
+    expect(Object.isFrozen(parsed.edges)).toBe(true);
+    expect(Object.isFrozen(parsed.edges[0])).toBe(true);
+    expect(parseEnvelope(fixture).edges).toEqual([]);
+    expect(() => parseEnvelope({ ...value, edges: [...value.edges, value.edges[0]] })).toThrow('Invalid edge');
+    expect(() => parseEnvelope({ ...value, edges: [{ ...value.edges[0], id: 'component' }] })).toThrow('Invalid edge');
+    expect(() => parseEnvelope({ ...value, edges: [{ ...value.edges[0], toId: 'missing' }] })).toThrow('Unknown edge endpoint');
+    expect(() => parseEnvelope({ ...value, edges: [{ ...value.edges[0], toId: 'toString' }] })).toThrow('Unknown edge endpoint');
+  });
   it('ignores safe additive element and diagnostic metadata', () => {
     const value = structuredClone(fixture);
     value.elements.function.futureField = { opaque: true };

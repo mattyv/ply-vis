@@ -24,6 +24,14 @@ export interface VisualElement {
   readonly source?: SourceLocation;
 }
 
+export interface VisualEdge {
+  readonly id: string;
+  readonly fromId: string;
+  readonly toId: string;
+  readonly kind: string;
+  readonly label: string;
+}
+
 export interface VisualDiagnostic {
   readonly id: string;
   readonly code: string;
@@ -44,6 +52,7 @@ export interface VisualEnvelope {
   };
   readonly svg: string;
   readonly elements: Readonly<Record<string, VisualElement>>;
+  readonly edges: readonly VisualEdge[];
   readonly diagnostics: readonly VisualDiagnostic[];
   /**
    * The same document drawn again with everything below `depth` folded into
@@ -90,7 +99,7 @@ function parseSource(value: unknown): SourceLocation | undefined {
 }
 
 export function parseEnvelope(value: unknown): VisualEnvelope {
-  if (!isRecord(value) || !exactKeys(value, ['protocolVersion', 'run', 'svg', 'elements', 'diagnostics'], ['folded'])) throw new EnvelopeError('Invalid visual envelope');
+  if (!isRecord(value) || !exactKeys(value, ['protocolVersion', 'run', 'svg', 'elements', 'diagnostics'], ['edges', 'folded'])) throw new EnvelopeError('Invalid visual envelope');
   if (value.protocolVersion !== PROTOCOL_VERSION) throw new EnvelopeError(`Unsupported visual protocol version: ${String(value.protocolVersion)}`);
   const outcomes = new Set(['clean', 'violation', 'timeout', 'missing_evidence', 'narrowed_evidence']);
   if (!isRecord(value.run) || !exactKeys(value.run, ['id', 'completedAt', 'root', 'tool', 'outcome']) || typeof value.run.id !== 'string' || !/^(?!\.{1,2}$)[A-Za-z0-9._-]{1,128}$/.test(value.run.id) || typeof value.run.completedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value.run.completedAt) || Number.isNaN(Date.parse(value.run.completedAt)) || !isRecord(value.run.root) || !exactKeys(value.run.root, ['path']) || typeof value.run.root.path !== 'string' || !value.run.root.path || !isRecord(value.run.tool) || !exactKeys(value.run.tool, ['name', 'version']) || typeof value.run.tool.name !== 'string' || !value.run.tool.name || typeof value.run.tool.version !== 'string' || !value.run.tool.version || !outcomes.has(value.run.outcome as string)) throw new EnvelopeError('Invalid run metadata');
@@ -104,7 +113,7 @@ export function parseEnvelope(value: unknown): VisualEnvelope {
     }
   }
   if (!isRecord(value.elements)) throw new EnvelopeError('Invalid element index');
-  const parsed: Record<string, VisualElement> = {};
+  const parsed: Record<string, VisualElement> = Object.create(null);
   for (const [id, raw] of Object.entries(value.elements)) {
     if (!isRecord(raw) || !['id', 'kind', 'label', 'evidence', 'diagnosticIds'].every((key) => key in raw) || !isRecord(raw.evidence)) throw new EnvelopeError(`Invalid element: ${id}`);
     if (raw.id !== id || typeof raw.id !== 'string' || !raw.id || typeof raw.kind !== 'string' || !raw.kind || typeof raw.label !== 'string' || !raw.label || typeof raw.evidence.verdict !== 'string' || !strings(raw.evidence.statuses) || typeof raw.evidence.reused !== 'boolean' || (raw.evidence.state !== undefined && !EVIDENCE_STATES.has(raw.evidence.state as string)) || !strings(raw.diagnosticIds) || (raw.parentId !== undefined && typeof raw.parentId !== 'string') || (raw.declaration !== undefined && typeof raw.declaration !== 'string') || (raw.limitations !== undefined && !strings(raw.limitations))) throw new EnvelopeError(`Invalid element: ${id}`);
@@ -112,6 +121,17 @@ export function parseEnvelope(value: unknown): VisualEnvelope {
     parsed[id] = Object.freeze({ id, kind: raw.kind, label: raw.label, evidence, diagnosticIds: Object.freeze([...raw.diagnosticIds]), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId as string }), ...(raw.declaration === undefined ? {} : { declaration: raw.declaration as string }), ...(raw.limitations === undefined ? {} : { limitations: Object.freeze([...(raw.limitations as string[])]) }), ...(raw.source === undefined ? {} : { source: parseSource(raw.source)! }) });
   }
   for (const element of Object.values(parsed)) if (element.parentId && !parsed[element.parentId]) throw new EnvelopeError(`Unknown parent: ${element.parentId}`);
+  const edges: VisualEdge[] = [];
+  const edgeIds = new Set<string>();
+  if (value.edges !== undefined) {
+    if (!Array.isArray(value.edges)) throw new EnvelopeError('Invalid edge list');
+    for (const raw of value.edges) {
+      if (!isRecord(raw) || !exactKeys(raw, ['id', 'fromId', 'toId', 'kind', 'label']) || typeof raw.id !== 'string' || !raw.id || raw.id in parsed || edgeIds.has(raw.id) || typeof raw.fromId !== 'string' || !raw.fromId || typeof raw.toId !== 'string' || !raw.toId || typeof raw.kind !== 'string' || !raw.kind || typeof raw.label !== 'string' || !raw.label) throw new EnvelopeError('Invalid edge');
+      if (!parsed[raw.fromId] || !parsed[raw.toId]) throw new EnvelopeError('Unknown edge endpoint');
+      edgeIds.add(raw.id);
+      edges.push(Object.freeze({ id: raw.id, fromId: raw.fromId, toId: raw.toId, kind: raw.kind, label: raw.label }));
+    }
+  }
   if (!Array.isArray(value.diagnostics)) throw new EnvelopeError('Invalid diagnostics');
   const diagnostics: VisualDiagnostic[] = [];
   const diagnosticIds = new Set<string>();
@@ -122,5 +142,5 @@ export function parseEnvelope(value: unknown): VisualEnvelope {
   }
   for (const element of Object.values(parsed)) for (const id of element.diagnosticIds ?? []) if (!diagnosticIds.has(id)) throw new EnvelopeError(`Unknown diagnostic: ${id}`);
   for (const diagnostic of diagnostics) if (diagnostic.elementId && !parsed[diagnostic.elementId]) throw new EnvelopeError(`Unknown diagnostic element: ${diagnostic.elementId}`);
-  return Object.freeze({ protocolVersion: 1, run: Object.freeze({ id: value.run.id, completedAt: value.run.completedAt, root: Object.freeze({ path: value.run.root.path }), tool: Object.freeze({ name: value.run.tool.name, version: value.run.tool.version }), outcome: value.run.outcome as VisualEnvelope['run']['outcome'] }), svg: value.svg, elements: Object.freeze(parsed), diagnostics: Object.freeze(diagnostics), folded: Object.freeze(folded) });
+  return Object.freeze({ protocolVersion: 1, run: Object.freeze({ id: value.run.id, completedAt: value.run.completedAt, root: Object.freeze({ path: value.run.root.path }), tool: Object.freeze({ name: value.run.tool.name, version: value.run.tool.version }), outcome: value.run.outcome as VisualEnvelope['run']['outcome'] }), svg: value.svg, elements: Object.freeze(parsed), edges: Object.freeze(edges), diagnostics: Object.freeze(diagnostics), folded: Object.freeze(folded) });
 }

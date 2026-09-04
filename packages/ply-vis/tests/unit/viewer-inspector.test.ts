@@ -64,3 +64,39 @@ describe('run details', () => {
     viewer.destroy();
   });
 });
+
+describe('edge details', () => {
+  it('makes an identified edge keyboard-reachable and inspectable without making it a focus target', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    const evidence = { verdict: 'unclaimed', statuses: [], reused: false };
+    viewer.load({
+      protocolVersion: 1,
+      run: { id: 'edge-details', completedAt: '2026-09-04T00:00:00Z', root: { path: '.' }, tool: { name: 'ply', version: 'test' }, outcome: 'clean' },
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><g data-element-id="caller"><rect width="10" height="10"/></g><g data-element-id="callee"><rect x="20" width="10" height="10"/></g><g data-element-id="call-edge"><path d="M 10 5 L 20 5"/></g></svg>',
+      elements: {
+        caller: { id: 'caller', kind: 'component', label: 'Caller', evidence, diagnosticIds: [] },
+        callee: { id: 'callee', kind: 'component', label: 'Callee', evidence, diagnosticIds: [] },
+      },
+      edges: [{ id: 'call-edge', fromId: 'caller', toId: 'callee', kind: 'call', label: 'may call' }],
+      diagnostics: [],
+    });
+    const canvas = container.querySelector<HTMLElement>('.ply-canvas')!;
+    const edge = container.querySelector<SVGElement>('[data-element-id="call-edge"]')!;
+
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+    expect(viewer.getState()).toMatchObject({ selectedId: 'call-edge', focusedId: undefined });
+    expect(edge.getAttribute('tabindex')).toBe('0');
+    expect(edge.getAttribute('role')).toBe('button');
+    expect(edge.getAttribute('aria-label')).toBe('call: may call; from Caller to Callee');
+    expect(container.querySelector('.ply-inspector')?.textContent).toContain('TypecallFromCallerToCallee');
+
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    edge.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(viewer.getState().focusedId).toBeUndefined();
+    viewer.destroy();
+  });
+});

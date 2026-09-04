@@ -28,6 +28,13 @@ export interface VisualElement {
     readonly limitations?: readonly string[];
     readonly source?: SourceLocation;
 }
+export interface VisualEdge {
+    readonly id: string;
+    readonly fromId: string;
+    readonly toId: string;
+    readonly kind: string;
+    readonly label: string;
+}
 export interface VisualDiagnostic {
     readonly id: string;
     readonly code: string;
@@ -52,6 +59,7 @@ export interface VisualEnvelope {
     };
     readonly svg: string;
     readonly elements: Readonly<Record<string, VisualElement>>;
+    readonly edges: readonly VisualEdge[];
     readonly diagnostics: readonly VisualDiagnostic[];
     /**
      * The same document drawn again with everything below `depth` folded into
