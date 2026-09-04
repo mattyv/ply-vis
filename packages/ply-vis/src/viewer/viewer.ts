@@ -1,4 +1,4 @@
-import { EnvelopeError, parseEnvelope, type VisualElement, type VisualEnvelope } from '../protocol/envelope';
+import { EnvelopeError, parseEnvelope, type EvidenceState, type VisualElement, type VisualEnvelope } from '../protocol/envelope';
 import { sanitizeSvg } from '../protocol/sanitize';
 import { HOST_PROTOCOL_VERSION, isHostResponse, type HostBridge } from '../host/messages';
 import { initialViewState, updateViewState, type ViewState } from '../state/view-state';
@@ -54,7 +54,10 @@ const html = `
         <label><input type="checkbox" data-overlay="violation" checked> Violation</label>
       </fieldset>
     </header>
-    <nav class="ply-breadcrumbs" aria-label="Semantic focus"></nav>
+    <div class="ply-identity">
+      <nav class="ply-breadcrumbs" aria-label="Semantic focus"></nav>
+      <p class="ply-provenance"></p>
+    </div>
     <div class="ply-workspace is-inspector-hidden">
       <main class="ply-canvas" tabindex="0" aria-label="Architecture canvas. Use arrow keys to move between items and Enter to inspect." data-empty="true">
         <div class="ply-stage"></div>
@@ -81,6 +84,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const status = root.querySelector<HTMLElement>('.ply-status')!;
   const overlays = root.querySelector<HTMLFieldSetElement>('.ply-toolbar fieldset')!;
   const breadcrumbs = root.querySelector<HTMLElement>('.ply-breadcrumbs')!;
+  const provenance = root.querySelector<HTMLElement>('.ply-provenance')!;
   let state = initialViewState();
   let active: VisualEnvelope | undefined;
   /** The envelope exactly as the host sent it, before sanitizing -- kept so a
@@ -115,6 +119,41 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   function setDetailsHidden(detailsHidden: boolean, persist = true) {
     setState({ detailsHidden }, persist);
     renderDetailsVisibility();
+  }
+
+  // Ply publishes the classification explicitly as `evidence.state` (one of
+  // exactly declared/earned/gap/violation) using the same classifier it uses
+  // for its own SVG styling. Only an envelope published before that field
+  // existed falls back to sniffing the verdict/status strings for the
+  // literal words 'gap' and 'earned' — which real verdicts like `bounded(2)`
+  // or `tool_error` never are, so this fallback only ever reliably catches
+  // 'violation'. Keep it solely for old runs.
+  function classifyElement(element: VisualElement): EvidenceState {
+    if (element.evidence.state) return element.evidence.state;
+    const supplied = new Set([element.evidence.verdict, ...element.evidence.statuses]);
+    return supplied.has('violation') ? 'violation' : supplied.has('gap') ? 'gap' : supplied.has('earned') ? 'earned' : 'declared';
+  }
+
+  /**
+   * What produced this envelope, in a sentence a first-time reader can trust
+   * without opening anything else.
+   *
+   * `run.tool.version === 'render'` looks like the obvious signal -- it is
+   * what test fixtures use to stand in for a declaration-only render -- but
+   * a real `cargo ply --json render` reports the CLI's own build version
+   * there (e.g. "0.1.0"), the same as a published run does. Checked against
+   * a real render (`demos/verified-green`), that version string is never
+   * the literal "render", so keying off it would leave every real render
+   * mislabelled as a run. What is actually true of a declaration-only
+   * render, and stays true only until a real check runs, is that no element
+   * carries earned, gap, or violation evidence -- so that is the signal used
+   * here, with the old literal kept as a harmless extra check.
+   */
+  function describeProvenance(envelope: VisualEnvelope): { text: string; title?: string } {
+    const promisesOnly = envelope.run.tool.version === 'render'
+      || Object.values(envelope.elements).every((element) => classifyElement(element) === 'declared');
+    if (promisesOnly) return { text: 'Promises only — no run has checked this yet, so nothing here can ever be green.' };
+    return { text: `Showing a run completed ${new Date(envelope.run.completedAt).toLocaleString()}.`, title: `Run ${envelope.run.id}` };
   }
 
   function isDescendant(element: VisualElement, ancestorId: string, elements: VisualEnvelope['elements']): boolean {
@@ -435,15 +474,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       const nodeId = node.dataset.elementId ?? node.dataset.plyId ?? '';
       const element = active.elements[nodeId];
       if (!element) { node.removeAttribute('hidden'); continue; }
-      // Ply publishes the classification explicitly as `evidence.state` (one
-      // of exactly declared/earned/gap/violation) using the same classifier
-      // it uses for its own SVG styling. Only an envelope published before
-      // that field existed falls back to sniffing the verdict/status strings
-      // for the literal words 'gap' and 'earned' — which real verdicts like
-      // `bounded(2)` or `tool_error` never are, so this fallback only ever
-      // reliably catches 'violation'. Keep it solely for old runs.
-      const suppliedStates = new Set([element.evidence.verdict, ...element.evidence.statuses]);
-      const stateClass = element.evidence.state ?? (suppliedStates.has('violation') ? 'violation' : suppliedStates.has('gap') ? 'gap' : suppliedStates.has('earned') ? 'earned' : 'declared');
+      const stateClass = classifyElement(element);
       const overlayVisible = stateClass === 'declared' || state.overlays[stateClass];
       const focusAncestor = focused ? isDescendant(focused, element.id, active.elements) : false;
       const focusVisible = !state.focusedId || element.id === state.focusedId || isDescendant(element, state.focusedId, active.elements) || focusAncestor;
@@ -509,7 +540,12 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     canvas.dataset.empty = 'false';
     const empty = canvas.querySelector('.ply-empty'); if (empty) empty.remove();
     applyVisibility(); transform(); renderInspector(state.selectedId ? envelope.elements[state.selectedId] : undefined);
-    status.textContent = envelope.run.tool.version === 'render' ? 'Rendered Ply spec' : `Showing run ${envelope.run.id}`;
+    const description = describeProvenance(envelope);
+    provenance.textContent = description.text;
+    if (description.title) provenance.title = description.title; else provenance.removeAttribute('title');
+    // A message left over from the previous document (a stale "Zoom 240%")
+    // would otherwise read as if it described this one.
+    status.textContent = '';
     if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(() => fit(false));
   }
 

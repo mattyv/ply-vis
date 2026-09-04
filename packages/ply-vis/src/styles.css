@@ -9,7 +9,9 @@ button { border: 1px solid var(--vscode-input-border, #8a96a6); border-radius: .
 button:hover { border-color: var(--vscode-focusBorder, #315fba); }
 button:focus-visible, select:focus-visible, input:focus-visible, .ply-canvas:focus-visible { outline: 3px solid var(--vscode-focusBorder, #175cd3); outline-offset: 2px; }
 .ply-tools { display: flex; gap: .25rem; }
-.ply-breadcrumbs { display: flex; flex: none; gap: .25rem; padding: .45rem .65rem; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.ply-identity { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .15rem .75rem; border-bottom: 1px solid var(--line); }
+.ply-breadcrumbs { display: flex; flex: 1 1 auto; min-width: 0; gap: .25rem; padding: .45rem .65rem; overflow-x: auto; }
+.ply-provenance { flex: none; margin: 0; padding: .45rem .65rem; font-size: .85rem; color: var(--ink); white-space: nowrap; }
 .ply-workspace { --details-width: clamp(17rem, 26vw, 26rem); position: relative; display: grid; flex: 1; grid-template-columns: minmax(0, 1fr) var(--details-width); overflow: hidden; min-height: 0; }
 .ply-workspace.is-inspector-hidden { grid-template-columns: minmax(0, 1fr) 0; }
 .ply-canvas { position: relative; overflow: hidden; min-height: 0; background: linear-gradient(90deg, transparent 19px, var(--grid) 20px), linear-gradient(transparent 19px, var(--grid) 20px); background-size: 20px 20px; touch-action: none; cursor: grab; }
