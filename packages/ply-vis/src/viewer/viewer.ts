@@ -1,4 +1,4 @@
-import { EnvelopeError, parseEnvelope, type VisualElement, type VisualEnvelope } from '../protocol/envelope';
+import { EnvelopeError, parseEnvelope, type EvidenceState, type VisualElement, type VisualEnvelope } from '../protocol/envelope';
 import { sanitizeSvg } from '../protocol/sanitize';
 import { HOST_PROTOCOL_VERSION, isHostResponse, type HostBridge } from '../host/messages';
 import { initialViewState, updateViewState, type ViewState } from '../state/view-state';
@@ -7,6 +7,36 @@ import { containsRect, fitRect, zoomAt, type Rect } from './viewport';
 export interface Viewer { load(value: unknown): boolean; destroy(): void; getState(): ViewState }
 
 const TOOLTIP_DELAY_MS = 500;
+
+// VS Code stamps these onto <body> itself, before any extension code runs,
+// and keeps them current when the user switches themes -- see
+// https://code.visualstudio.com/api/extension-guides/webview#theming-webview-content.
+const VSCODE_DARK_KINDS = new Set(['vscode-dark', 'vscode-high-contrast']);
+const VSCODE_LIGHT_KINDS = new Set(['vscode-light', 'vscode-high-contrast-light']);
+
+/**
+ * Whether the host is currently showing a dark theme.
+ *
+ * Inside a VS Code webview, `prefers-color-scheme` tracks the operating
+ * system, not the editor's own colour theme -- someone on a light OS with
+ * a dark editor theme would otherwise see this viewer decide "light" while
+ * everything around it is dark. VS Code separately marks `<body>` with a
+ * `data-vscode-theme-kind` attribute and a `vscode-dark` / `vscode-light` /
+ * `vscode-high-contrast` / `vscode-high-contrast-light` class, so those are
+ * checked first. Outside VS Code -- a plain browser, JetBrains -- neither
+ * exists, and the OS-level media query is the right signal to fall back to.
+ */
+function detectPrefersDark(): boolean {
+  const body = typeof document !== 'undefined' ? document.body : undefined;
+  const kind = body?.dataset.vscodeThemeKind;
+  if (kind !== undefined) return VSCODE_DARK_KINDS.has(kind);
+  if (body) {
+    for (const name of VSCODE_DARK_KINDS) if (body.classList.contains(name)) return true;
+    for (const name of VSCODE_LIGHT_KINDS) if (body.classList.contains(name)) return false;
+  }
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
 const iconButton = (label: string, text: string) => `<button type="button" aria-label="${label}" title="${label}">${text}</button>`;
 const html = `
   <section class="ply-vis" aria-label="Ply visual evidence viewer">
@@ -24,7 +54,10 @@ const html = `
         <label><input type="checkbox" data-overlay="violation" checked> Violation</label>
       </fieldset>
     </header>
-    <nav class="ply-breadcrumbs" aria-label="Semantic focus"></nav>
+    <div class="ply-identity">
+      <nav class="ply-breadcrumbs" aria-label="Semantic focus"></nav>
+      <p class="ply-provenance"></p>
+    </div>
     <div class="ply-workspace is-inspector-hidden">
       <main class="ply-canvas" tabindex="0" aria-label="Architecture canvas. Use arrow keys to move between items and Enter to inspect." data-empty="true">
         <div class="ply-stage"></div>
@@ -51,8 +84,14 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const status = root.querySelector<HTMLElement>('.ply-status')!;
   const overlays = root.querySelector<HTMLFieldSetElement>('.ply-toolbar fieldset')!;
   const breadcrumbs = root.querySelector<HTMLElement>('.ply-breadcrumbs')!;
+  const provenance = root.querySelector<HTMLElement>('.ply-provenance')!;
   let state = initialViewState();
   let active: VisualEnvelope | undefined;
+  /** The envelope exactly as the host sent it, before sanitizing -- kept so a
+   * later theme change can re-sanitize and repaint without needing a fresh
+   * envelope from the host. */
+  let rawEnvelope: VisualEnvelope | undefined;
+  let prefersDark = detectPrefersDark();
   /** Which folded drawing is on the stage, or `undefined` for the full one. */
   let paintedDepth: number | undefined;
   let drag: { x: number; y: number; panX: number; panY: number; pointerId: number; moved: boolean } | undefined;
@@ -80,6 +119,41 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   function setDetailsHidden(detailsHidden: boolean, persist = true) {
     setState({ detailsHidden }, persist);
     renderDetailsVisibility();
+  }
+
+  // Ply publishes the classification explicitly as `evidence.state` (one of
+  // exactly declared/earned/gap/violation) using the same classifier it uses
+  // for its own SVG styling. Only an envelope published before that field
+  // existed falls back to sniffing the verdict/status strings for the
+  // literal words 'gap' and 'earned' — which real verdicts like `bounded(2)`
+  // or `tool_error` never are, so this fallback only ever reliably catches
+  // 'violation'. Keep it solely for old runs.
+  function classifyElement(element: VisualElement): EvidenceState {
+    if (element.evidence.state) return element.evidence.state;
+    const supplied = new Set([element.evidence.verdict, ...element.evidence.statuses]);
+    return supplied.has('violation') ? 'violation' : supplied.has('gap') ? 'gap' : supplied.has('earned') ? 'earned' : 'declared';
+  }
+
+  /**
+   * What produced this envelope, in a sentence a first-time reader can trust
+   * without opening anything else.
+   *
+   * `run.tool.version === 'render'` looks like the obvious signal -- it is
+   * what test fixtures use to stand in for a declaration-only render -- but
+   * a real `cargo ply --json render` reports the CLI's own build version
+   * there (e.g. "0.1.0"), the same as a published run does. Checked against
+   * a real render (`demos/verified-green`), that version string is never
+   * the literal "render", so keying off it would leave every real render
+   * mislabelled as a run. What is actually true of a declaration-only
+   * render, and stays true only until a real check runs, is that no element
+   * carries earned, gap, or violation evidence -- so that is the signal used
+   * here, with the old literal kept as a harmless extra check.
+   */
+  function describeProvenance(envelope: VisualEnvelope): { text: string; title?: string } {
+    const promisesOnly = envelope.run.tool.version === 'render'
+      || Object.values(envelope.elements).every((element) => classifyElement(element) === 'declared');
+    if (promisesOnly) return { text: 'Promises only — no run has checked this yet, so nothing here can ever be green.' };
+    return { text: `Showing a run completed ${new Date(envelope.run.completedAt).toLocaleString()}.`, title: `Run ${envelope.run.id}` };
   }
 
   function isDescendant(element: VisualElement, ancestorId: string, elements: VisualEnvelope['elements']): boolean {
@@ -400,15 +474,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       const nodeId = node.dataset.elementId ?? node.dataset.plyId ?? '';
       const element = active.elements[nodeId];
       if (!element) { node.removeAttribute('hidden'); continue; }
-      // Ply publishes the classification explicitly as `evidence.state` (one
-      // of exactly declared/earned/gap/violation) using the same classifier
-      // it uses for its own SVG styling. Only an envelope published before
-      // that field existed falls back to sniffing the verdict/status strings
-      // for the literal words 'gap' and 'earned' — which real verdicts like
-      // `bounded(2)` or `tool_error` never are, so this fallback only ever
-      // reliably catches 'violation'. Keep it solely for old runs.
-      const suppliedStates = new Set([element.evidence.verdict, ...element.evidence.statuses]);
-      const stateClass = element.evidence.state ?? (suppliedStates.has('violation') ? 'violation' : suppliedStates.has('gap') ? 'gap' : suppliedStates.has('earned') ? 'earned' : 'declared');
+      const stateClass = classifyElement(element);
       const overlayVisible = stateClass === 'declared' || state.overlays[stateClass];
       const focusAncestor = focused ? isDescendant(focused, element.id, active.elements) : false;
       const focusVisible = !state.focusedId || element.id === state.focusedId || isDescendant(element, state.focusedId, active.elements) || focusAncestor;
@@ -474,7 +540,12 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     canvas.dataset.empty = 'false';
     const empty = canvas.querySelector('.ply-empty'); if (empty) empty.remove();
     applyVisibility(); transform(); renderInspector(state.selectedId ? envelope.elements[state.selectedId] : undefined);
-    status.textContent = envelope.run.tool.version === 'render' ? 'Rendered Ply spec' : `Showing run ${envelope.run.id}`;
+    const description = describeProvenance(envelope);
+    provenance.textContent = description.text;
+    if (description.title) provenance.title = description.title; else provenance.removeAttribute('title');
+    // A message left over from the previous document (a stale "Zoom 240%")
+    // would otherwise read as if it described this one.
+    status.textContent = '';
     if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(() => fit(false));
   }
 
@@ -535,15 +606,23 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     return active.folded.some((candidate) => candidate.depth === wanted) ? wanted : undefined;
   }
 
+  /** Sanitize a freshly-parsed envelope against the theme currently in
+   * `prefersDark`. Kept separate from `load` so a theme change can redo
+   * exactly this step against the envelope already on screen, with no new
+   * envelope from the host required. */
+  function sanitizeEnvelope(raw: VisualEnvelope): VisualEnvelope {
+    return Object.freeze({
+      ...raw,
+      svg: sanitizeSvg(raw.svg, { prefersDark }),
+      folded: Object.freeze(raw.folded.map((drawing) => Object.freeze({ depth: drawing.depth, svg: sanitizeSvg(drawing.svg, { prefersDark }) }))),
+    });
+  }
+
   function load(value: unknown): boolean {
     try {
       const parsed = parseEnvelope(value);
-      const envelope = Object.freeze({
-        ...parsed,
-        svg: sanitizeSvg(parsed.svg),
-        folded: Object.freeze(parsed.folded.map((drawing) => Object.freeze({ depth: drawing.depth, svg: sanitizeSvg(drawing.svg) }))),
-      });
-      show(envelope);
+      rawEnvelope = parsed;
+      show(sanitizeEnvelope(parsed));
       delete root.dataset.error;
       return true;
     } catch (error) {
@@ -553,6 +632,25 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       bridge.post({ channel: 'ply-vis', version: 1, type: 'error', message });
       return false;
     }
+  }
+
+  /**
+   * Re-sanitize the envelope already on screen against a new theme and
+   * repaint it, without disturbing the reader's zoom, pan, or selection --
+   * unlike `show`, which resets all of that for what it assumes is a new
+   * document.
+   */
+  function retheme(nextPrefersDark: boolean) {
+    if (nextPrefersDark === prefersDark || !rawEnvelope) { prefersDark = nextPrefersDark; return; }
+    prefersDark = nextPrefersDark;
+    active = sanitizeEnvelope(rawEnvelope);
+    hideTooltip();
+    hideContextMenu();
+    const drawing = paintedDepth === undefined ? active.svg : active.folded.find((candidate) => candidate.depth === paintedDepth)?.svg ?? active.svg;
+    paintDrawing(drawing);
+    applyVisibility();
+    transform();
+    renderInspector(state.selectedId ? active.elements[state.selectedId] : undefined);
   }
 
   function select(id: string) { if (!active?.elements[id]) return; setState({ selectedId: id, detailsHidden: false }); renderDetailsVisibility(); applyVisibility(); renderInspector(active.elements[id]); }
@@ -752,10 +850,20 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   window.addEventListener('message', receive);
   window.addEventListener('error', receiveError);
   window.addEventListener('unhandledrejection', receiveRejection);
+  // VS Code flips body's class and data-vscode-theme-kind live when the
+  // reader switches editor theme, but raises no event for it -- observing
+  // the mutation is the approach VS Code's own webview-ui-toolkit uses for
+  // exactly this. Outside VS Code, neither ever appears, and the OS-level
+  // media query fires its own change event instead.
+  const themeObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => retheme(detectPrefersDark())) : undefined;
+  themeObserver?.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-vscode-theme-kind'] });
+  const darkMediaQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : undefined;
+  const onDarkMediaChange = () => retheme(detectPrefersDark());
+  darkMediaQuery?.addEventListener('change', onDarkMediaChange);
   renderDetailsVisibility();
   for (const envelope of initialEnvelopes) load(envelope);
   bridge.post({ channel: 'ply-vis', version: 1, type: 'ready' });
   if (!initialEnvelopes.length) bridge.post({ channel: 'ply-vis', version: 1, type: 'request-artifact' });
 
-  return { load, getState: () => state, destroy: () => { cancelTooltipTimer(); window.removeEventListener('message', receive); window.removeEventListener('error', receiveError); window.removeEventListener('unhandledrejection', receiveRejection); window.removeEventListener('pointerdown', closeMenuOnOutsidePointer); container.replaceChildren(); } };
+  return { load, getState: () => state, destroy: () => { cancelTooltipTimer(); window.removeEventListener('message', receive); window.removeEventListener('error', receiveError); window.removeEventListener('unhandledrejection', receiveRejection); window.removeEventListener('pointerdown', closeMenuOnOutsidePointer); themeObserver?.disconnect(); darkMediaQuery?.removeEventListener('change', onDarkMediaChange); container.replaceChildren(); } };
 }

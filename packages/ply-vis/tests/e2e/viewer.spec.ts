@@ -207,7 +207,9 @@ test('shows the latest supplied run without duplicating the sidebar run picker',
     (window as any).viewer.load(second);
   });
   await expect(page.getByLabel('Run snapshot')).toHaveCount(0);
-  await expect(page.getByRole('status')).toHaveText('Showing run run-002');
+  const when = await page.evaluate(() => new Date('2026-08-28T06:00:00Z').toLocaleString());
+  await expect(page.locator('.ply-provenance')).toHaveText(`Showing a run completed ${when}.`);
+  await expect(page.locator('.ply-provenance')).toHaveAttribute('title', 'Run run-002');
   await expect(page.locator('[data-run-diff]')).toHaveCount(0);
 });
 
