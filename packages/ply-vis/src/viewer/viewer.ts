@@ -7,6 +7,36 @@ import { containsRect, fitRect, zoomAt, type Rect } from './viewport';
 export interface Viewer { load(value: unknown): boolean; destroy(): void; getState(): ViewState }
 
 const TOOLTIP_DELAY_MS = 500;
+
+// VS Code stamps these onto <body> itself, before any extension code runs,
+// and keeps them current when the user switches themes -- see
+// https://code.visualstudio.com/api/extension-guides/webview#theming-webview-content.
+const VSCODE_DARK_KINDS = new Set(['vscode-dark', 'vscode-high-contrast']);
+const VSCODE_LIGHT_KINDS = new Set(['vscode-light', 'vscode-high-contrast-light']);
+
+/**
+ * Whether the host is currently showing a dark theme.
+ *
+ * Inside a VS Code webview, `prefers-color-scheme` tracks the operating
+ * system, not the editor's own colour theme -- someone on a light OS with
+ * a dark editor theme would otherwise see this viewer decide "light" while
+ * everything around it is dark. VS Code separately marks `<body>` with a
+ * `data-vscode-theme-kind` attribute and a `vscode-dark` / `vscode-light` /
+ * `vscode-high-contrast` / `vscode-high-contrast-light` class, so those are
+ * checked first. Outside VS Code -- a plain browser, JetBrains -- neither
+ * exists, and the OS-level media query is the right signal to fall back to.
+ */
+function detectPrefersDark(): boolean {
+  const body = typeof document !== 'undefined' ? document.body : undefined;
+  const kind = body?.dataset.vscodeThemeKind;
+  if (kind !== undefined) return VSCODE_DARK_KINDS.has(kind);
+  if (body) {
+    for (const name of VSCODE_DARK_KINDS) if (body.classList.contains(name)) return true;
+    for (const name of VSCODE_LIGHT_KINDS) if (body.classList.contains(name)) return false;
+  }
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
 const iconButton = (label: string, text: string) => `<button type="button" aria-label="${label}" title="${label}">${text}</button>`;
 const html = `
   <section class="ply-vis" aria-label="Ply visual evidence viewer">
@@ -53,6 +83,11 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const breadcrumbs = root.querySelector<HTMLElement>('.ply-breadcrumbs')!;
   let state = initialViewState();
   let active: VisualEnvelope | undefined;
+  /** The envelope exactly as the host sent it, before sanitizing -- kept so a
+   * later theme change can re-sanitize and repaint without needing a fresh
+   * envelope from the host. */
+  let rawEnvelope: VisualEnvelope | undefined;
+  let prefersDark = detectPrefersDark();
   /** Which folded drawing is on the stage, or `undefined` for the full one. */
   let paintedDepth: number | undefined;
   let drag: { x: number; y: number; panX: number; panY: number; pointerId: number; moved: boolean } | undefined;
@@ -535,15 +570,23 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     return active.folded.some((candidate) => candidate.depth === wanted) ? wanted : undefined;
   }
 
+  /** Sanitize a freshly-parsed envelope against the theme currently in
+   * `prefersDark`. Kept separate from `load` so a theme change can redo
+   * exactly this step against the envelope already on screen, with no new
+   * envelope from the host required. */
+  function sanitizeEnvelope(raw: VisualEnvelope): VisualEnvelope {
+    return Object.freeze({
+      ...raw,
+      svg: sanitizeSvg(raw.svg, { prefersDark }),
+      folded: Object.freeze(raw.folded.map((drawing) => Object.freeze({ depth: drawing.depth, svg: sanitizeSvg(drawing.svg, { prefersDark }) }))),
+    });
+  }
+
   function load(value: unknown): boolean {
     try {
       const parsed = parseEnvelope(value);
-      const envelope = Object.freeze({
-        ...parsed,
-        svg: sanitizeSvg(parsed.svg),
-        folded: Object.freeze(parsed.folded.map((drawing) => Object.freeze({ depth: drawing.depth, svg: sanitizeSvg(drawing.svg) }))),
-      });
-      show(envelope);
+      rawEnvelope = parsed;
+      show(sanitizeEnvelope(parsed));
       delete root.dataset.error;
       return true;
     } catch (error) {
@@ -553,6 +596,25 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       bridge.post({ channel: 'ply-vis', version: 1, type: 'error', message });
       return false;
     }
+  }
+
+  /**
+   * Re-sanitize the envelope already on screen against a new theme and
+   * repaint it, without disturbing the reader's zoom, pan, or selection --
+   * unlike `show`, which resets all of that for what it assumes is a new
+   * document.
+   */
+  function retheme(nextPrefersDark: boolean) {
+    if (nextPrefersDark === prefersDark || !rawEnvelope) { prefersDark = nextPrefersDark; return; }
+    prefersDark = nextPrefersDark;
+    active = sanitizeEnvelope(rawEnvelope);
+    hideTooltip();
+    hideContextMenu();
+    const drawing = paintedDepth === undefined ? active.svg : active.folded.find((candidate) => candidate.depth === paintedDepth)?.svg ?? active.svg;
+    paintDrawing(drawing);
+    applyVisibility();
+    transform();
+    renderInspector(state.selectedId ? active.elements[state.selectedId] : undefined);
   }
 
   function select(id: string) { if (!active?.elements[id]) return; setState({ selectedId: id, detailsHidden: false }); renderDetailsVisibility(); applyVisibility(); renderInspector(active.elements[id]); }
@@ -752,10 +814,20 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   window.addEventListener('message', receive);
   window.addEventListener('error', receiveError);
   window.addEventListener('unhandledrejection', receiveRejection);
+  // VS Code flips body's class and data-vscode-theme-kind live when the
+  // reader switches editor theme, but raises no event for it -- observing
+  // the mutation is the approach VS Code's own webview-ui-toolkit uses for
+  // exactly this. Outside VS Code, neither ever appears, and the OS-level
+  // media query fires its own change event instead.
+  const themeObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => retheme(detectPrefersDark())) : undefined;
+  themeObserver?.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-vscode-theme-kind'] });
+  const darkMediaQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : undefined;
+  const onDarkMediaChange = () => retheme(detectPrefersDark());
+  darkMediaQuery?.addEventListener('change', onDarkMediaChange);
   renderDetailsVisibility();
   for (const envelope of initialEnvelopes) load(envelope);
   bridge.post({ channel: 'ply-vis', version: 1, type: 'ready' });
   if (!initialEnvelopes.length) bridge.post({ channel: 'ply-vis', version: 1, type: 'request-artifact' });
 
-  return { load, getState: () => state, destroy: () => { cancelTooltipTimer(); window.removeEventListener('message', receive); window.removeEventListener('error', receiveError); window.removeEventListener('unhandledrejection', receiveRejection); window.removeEventListener('pointerdown', closeMenuOnOutsidePointer); container.replaceChildren(); } };
+  return { load, getState: () => state, destroy: () => { cancelTooltipTimer(); window.removeEventListener('message', receive); window.removeEventListener('error', receiveError); window.removeEventListener('unhandledrejection', receiveRejection); window.removeEventListener('pointerdown', closeMenuOnOutsidePointer); themeObserver?.disconnect(); darkMediaQuery?.removeEventListener('change', onDarkMediaChange); container.replaceChildren(); } };
 }
