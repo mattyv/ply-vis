@@ -4,6 +4,7 @@
   "displayName": "Ply Visuals",
   "description": "Inspect completed Ply visual artifacts and render Ply specifications.",
   "version": "0.1.0",
+  "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/mattyv/ply-vis.git"

@@ -2,6 +2,7 @@
   "name": "ply-vis-workspace",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT OR Apache-2.0",
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "npm run build --workspace @ply/vis && npm run build --workspace ply-vis",
