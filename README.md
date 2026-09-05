@@ -90,3 +90,12 @@ choose a different shared cache root, or `GRADLE_USER_HOME` to override Gradle's
 cache alone.
 
 Ply Visual reads artifacts produced by Ply. It does not replace Ply's verifier or define the artifact format independently.
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT) at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for
+inclusion in this project by you, as defined in the Apache-2.0 license, shall be
+dual-licensed as above, without any additional terms or conditions.
