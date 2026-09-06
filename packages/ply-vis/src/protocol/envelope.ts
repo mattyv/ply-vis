@@ -121,6 +121,23 @@ export function parseEnvelope(value: unknown): VisualEnvelope {
     parsed[id] = Object.freeze({ id, kind: raw.kind, label: raw.label, evidence, diagnosticIds: Object.freeze([...raw.diagnosticIds]), ...(raw.parentId === undefined ? {} : { parentId: raw.parentId as string }), ...(raw.declaration === undefined ? {} : { declaration: raw.declaration as string }), ...(raw.limitations === undefined ? {} : { limitations: Object.freeze([...(raw.limitations as string[])]) }), ...(raw.source === undefined ? {} : { source: parseSource(raw.source)! }) });
   }
   for (const element of Object.values(parsed)) if (element.parentId && !parsed[element.parentId]) throw new EnvelopeError(`Unknown parent: ${element.parentId}`);
+  // Every parent must exist *and* the chain of them must end. Checking only
+  // existence let `a` name `b` as its parent and `b` name `a`, which is a
+  // well-formed pair of links and an infinite drawing: the viewer's walks up
+  // the nesting chain never reached a top and the tab froze with nothing on
+  // screen. Refusing is the better failure -- the reader gets a message and
+  // can ask for another drawing.
+  const terminates = new Set<string>();
+  for (const start of Object.values(parsed)) {
+    const seen = new Set<string>();
+    let current: VisualElement | undefined = start;
+    while (current && !terminates.has(current.id)) {
+      if (seen.has(current.id)) throw new EnvelopeError(`Element nesting forms a cycle: ${current.id}`);
+      seen.add(current.id);
+      current = current.parentId ? parsed[current.parentId] : undefined;
+    }
+    for (const id of seen) terminates.add(id);
+  }
   const edges: VisualEdge[] = [];
   const edgeIds = new Set<string>();
   if (value.edges !== undefined) {

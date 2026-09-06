@@ -2,6 +2,7 @@ import { EnvelopeError, parseEnvelope, type EvidenceState, type VisualEdge, type
 import { sanitizeSvg } from '../protocol/sanitize';
 import { HOST_PROTOCOL_VERSION, isHostResponse, type HostBridge } from '../host/messages';
 import { initialViewState, updateViewState, type ViewState } from '../state/view-state';
+import { ancestry } from './ancestry';
 import { containsRect, fitRect, zoomAt, type Rect } from './viewport';
 
 export interface Viewer { load(value: unknown): boolean; destroy(): void; getState(): ViewState }
@@ -209,14 +210,17 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   }
 
   function isDescendant(element: VisualElement, ancestorId: string, elements: VisualEnvelope['elements']): boolean {
-    let parent = element.parentId;
-    while (parent) { if (parent === ancestorId) return true; parent = elements[parent]?.parentId; }
+    for (const enclosing of ancestry(element.parentId ? elements[element.parentId] : undefined, elements)) if (enclosing.id === ancestorId) return true;
     return false;
   }
 
   function detailDepth(element: VisualElement): number {
     let depth = 0; let current: VisualElement | undefined = element;
-    while (current?.parentId && current.id !== state.focusedId) { current = active?.elements[current.parentId]; depth += 1; }
+    for (const enclosing of ancestry(element, active?.elements ?? {})) {
+      current = enclosing;
+      if (!enclosing.parentId || enclosing.id === state.focusedId) break;
+      depth += 1;
+    }
     return state.focusedId && current?.id !== state.focusedId ? Number.POSITIVE_INFINITY : depth;
   }
 
@@ -244,8 +248,10 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     // workspace > core > kernel", offering the reader a step that is not a
     // step.
     const trail: VisualElement[] = [];
-    let current = state.focusedId ? active.elements[state.focusedId] : undefined;
-    while (current?.parentId) { trail.unshift(current); current = active.elements[current.parentId]; }
+    for (const enclosing of ancestry(state.focusedId ? active.elements[state.focusedId] : undefined, active.elements)) {
+      if (!enclosing.parentId) break;
+      trail.unshift(enclosing);
+    }
     const all = document.createElement('button'); all.type = 'button'; all.textContent = 'Workspace'; all.dataset.focusId = ''; breadcrumbs.append(all);
     for (const element of trail) { const button = document.createElement('button'); button.type = 'button'; button.textContent = element.label; button.dataset.focusId = element.id; breadcrumbs.append(button); }
   }
