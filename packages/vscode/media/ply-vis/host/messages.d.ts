@@ -44,6 +44,11 @@ export type HostResponse = {
     version: 1;
     type: 'restore-state';
     state: ViewState;
+} | {
+    channel: 'ply-vis';
+    version: 1;
+    type: 'capabilities';
+    explain: boolean;
 };
 export interface HostBridge {
     post(message: HostRequest): void;

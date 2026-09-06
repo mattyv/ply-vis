@@ -45,6 +45,18 @@ button:focus-visible, select:focus-visible, input:focus-visible, .ply-canvas:foc
 .ply-source { overflow-wrap: anywhere; text-align: left; }
 .ply-status { flex: none; margin: 0; padding: .35rem .65rem; border-top: 1px solid var(--line); background: var(--panel); }
 [hidden] { display: none !important; }
+/* Two signals, and they can disagree. Inside a VS Code webview
+   `prefers-color-scheme` tracks the *operating system*, while the drawing is
+   themed from VS Code's own `data-vscode-theme-kind` (see
+   `detectPrefersDark`). A reader on a light OS with a dark editor theme, or
+   the reverse, therefore gets chrome following one and the drawing the other.
+   Inside VS Code this is masked -- every colour below resolves through a
+   `--vscode-*` variable that already tracks the editor -- so only the
+   fallbacks differ, and those are what a plain browser or JetBrains uses.
+   Left as is deliberately: keying this off the editor attribute too would
+   need the palette written twice, and no reader has hit it. Recorded so the
+   next person to see chrome and drawing disagree outside VS Code knows why.
+   2026-09-06. */
 @media (prefers-color-scheme: dark) { .ply-vis { --bg: var(--vscode-editor-background, #10151c); --panel: var(--vscode-editorWidget-background, #171d26); --ink: var(--vscode-editor-foreground, #edf2f7); --line: var(--vscode-panel-border, #3c4654); --grid: var(--vscode-editorIndentGuide-background, #29323d); } button:hover { border-color: var(--vscode-focusBorder, #6ea8fe); } button:focus-visible, select:focus-visible, input:focus-visible, .ply-canvas:focus-visible { outline-color: var(--vscode-focusBorder, #6ea8fe); } }
 @media (max-width: 700px) { .ply-workspace, .ply-workspace.is-inspector-hidden { grid-template-columns: 1fr; } .ply-inspector { border-left: 0; border-top: 1px solid var(--line); } .ply-inspector-toggle, .ply-workspace.is-inspector-hidden .ply-inspector-toggle { top: .5rem; right: .5rem; transform: none; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .001ms !important; animation-duration: .001ms !important; } }
