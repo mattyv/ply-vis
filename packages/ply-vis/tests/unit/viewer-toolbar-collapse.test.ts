@@ -54,6 +54,21 @@ describe('folding the checkbox groups away', () => {
     viewer.destroy();
   });
 
+  // The arrow points the way the row will move, so it reads as an
+  // instruction rather than as decoration. Asserted exactly, because a
+  // reversed chevron tells the reader the opposite of the truth and nothing
+  // else in the test suite would notice.
+  it('points the arrow the way clicking it will move the row', () => {
+    const { toggle, viewer } = mount();
+    expect(toggle.textContent).toBe('\u2303');
+    expect(toggle.getAttribute('aria-label')).toBe('Hide options');
+
+    toggle.click();
+    expect(toggle.textContent).toBe('\u2304');
+    expect(toggle.getAttribute('aria-label')).toBe('Show options');
+    viewer.destroy();
+  });
+
   it('leaves the zoom controls alone, folded or not', () => {
     const { toggle, zoomIn, viewer } = mount();
     toggle.click();

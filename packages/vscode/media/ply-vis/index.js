@@ -104,9 +104,9 @@ ${f}` : g, b = /\s*([^{}]+)\{([^{}]*)\}/gy, h = [];
     if (!C.every(($) => vt.test($))) return;
     const Z = [];
     for (const $ of A.split(";")) {
-      const z = $.indexOf(":");
-      if (z < 1) continue;
-      const D = $.slice(0, z).trim().toLowerCase(), R = $.slice(z + 1).trim();
+      const T = $.indexOf(":");
+      if (T < 1) continue;
+      const D = $.slice(0, T).trim().toLowerCase(), R = $.slice(T + 1).trim();
       bt[D]?.test(R) === !0 && Z.push([D, R]);
     }
     Z.length && h.push({ selectors: C, declarations: Z });
@@ -184,7 +184,7 @@ const ve = (n, r) => `<button type="button" aria-label="${n}" title="${n}">${r}<
       <div class="ply-tools" role="group" aria-label="Canvas controls">
         ${ve("Zoom out", "−")}${ve("Zoom in", "+")}${ve("Fit canvas", "Fit")}
       </div>
-      <button type="button" class="ply-options-toggle" aria-controls="ply-vis-options" aria-expanded="true" aria-label="Hide options" title="Hide options">⋯</button>
+      <button type="button" class="ply-options-toggle" aria-controls="ply-vis-options" aria-expanded="true" aria-label="Hide options" title="Hide options">⌃</button>
       <div class="ply-options" id="ply-vis-options">
       <fieldset><legend>Detail</legend>
         <label><input type="checkbox" data-fold-detail checked> Fold detail when zoomed out</label>
@@ -215,7 +215,7 @@ const ve = (n, r) => `<button type="button" aria-label="${n}" title="${n}">${r}<
   </section>`;
 function Nt(n, r, g = []) {
   n.innerHTML = Mt;
-  const f = n.querySelector(".ply-vis"), m = f.querySelector(".ply-canvas"), b = f.querySelector(".ply-stage"), h = f.querySelector(".ply-tooltip"), w = f.querySelector(".ply-context-menu"), s = f.querySelector(".ply-inspector"), p = f.querySelector(".ply-inspector-toggle"), A = f.querySelector(".ply-workspace"), C = f.querySelector(".ply-status"), Z = f.querySelector(".ply-toolbar [data-evidence-filters]"), $ = f.querySelector(".ply-options"), z = f.querySelector(".ply-options-toggle"), D = f.querySelector(".ply-breadcrumbs"), R = f.querySelector(".ply-provenance");
+  const f = n.querySelector(".ply-vis"), m = f.querySelector(".ply-canvas"), b = f.querySelector(".ply-stage"), h = f.querySelector(".ply-tooltip"), w = f.querySelector(".ply-context-menu"), s = f.querySelector(".ply-inspector"), p = f.querySelector(".ply-inspector-toggle"), A = f.querySelector(".ply-workspace"), C = f.querySelector(".ply-status"), Z = f.querySelector(".ply-toolbar [data-evidence-filters]"), $ = f.querySelector(".ply-options"), T = f.querySelector(".ply-options-toggle"), D = f.querySelector(".ply-breadcrumbs"), R = f.querySelector(".ply-provenance");
   let a = kt(), y, Q = /* @__PURE__ */ new Map(), ne, P = ge(), V;
   const ee = /* @__PURE__ */ new Set();
   let k, we = 0, S, W, oe, ie = !1;
@@ -232,7 +232,7 @@ function Nt(n, r, g = []) {
   function se() {
     $.hidden = a.optionsHidden;
     const e = a.optionsHidden ? "Show options" : "Hide options";
-    z.setAttribute("aria-label", e), z.title = e, z.setAttribute("aria-expanded", String(!a.optionsHidden));
+    T.setAttribute("aria-label", e), T.title = e, T.setAttribute("aria-expanded", String(!a.optionsHidden)), T.textContent = a.optionsHidden ? "⌄" : "⌃";
   }
   function Ue(e, t = !0) {
     O({ optionsHidden: e }, t), se();
@@ -285,21 +285,21 @@ function Nt(n, r, g = []) {
       return;
     }
     if ("fromId" in e) {
-      s.append(T("Type", [e.kind])), s.append(T("From", [y.elements[e.fromId].label])), s.append(T("To", [y.elements[e.toId].label]));
+      s.append(M("Type", [e.kind])), s.append(M("From", [y.elements[e.fromId].label])), s.append(M("To", [y.elements[e.toId].label]));
       return;
     }
     const o = e, d = o.declaration?.split(`
 `).filter(Boolean);
-    s.append(T("Declaration", d?.length ? d : ["No declaration text supplied."])), s.append(T("Verdict", [o.evidence.verdict])), s.append(T("Statuses", o.evidence.statuses.length ? o.evidence.statuses : ["No statuses supplied."]));
+    s.append(M("Declaration", d?.length ? d : ["No declaration text supplied."])), s.append(M("Verdict", [o.evidence.verdict])), s.append(M("Statuses", o.evidence.statuses.length ? o.evidence.statuses : ["No statuses supplied."]));
     const i = Object.entries(o.evidence).filter(([u]) => !["verdict", "statuses"].includes(u)).map(([u, x]) => `${u}: ${typeof x == "string" ? x : JSON.stringify(x)}`);
-    s.append(T("Earned evidence", i.length ? i : ["No additional evidence details supplied."])), s.append(T("Limitations", o.limitations?.length ? o.limitations : ["No limitations supplied."]));
+    s.append(M("Earned evidence", i.length ? i : ["No additional evidence details supplied."])), s.append(M("Limitations", o.limitations?.length ? o.limitations : ["No limitations supplied."]));
     const c = new Map(y.diagnostics.map((u) => [u.id, u])), v = o.diagnosticIds.map((u) => c.get(u)).filter((u) => u !== void 0).map((u) => `${u.code} — ${u.severity}: ${u.message}`);
-    if (s.append(T("Diagnostics", v.length ? v : ["No diagnostics supplied."])), s.append(Qe(y.run)), o.source) {
+    if (s.append(M("Diagnostics", v.length ? v : ["No diagnostics supplied."])), s.append(Qe(y.run)), o.source) {
       const u = document.createElement("button");
       u.type = "button", u.className = "ply-source", u.textContent = `Open ${o.source.file}:${o.source.startLine + 1}:${o.source.startColumn + 1}`, u.addEventListener("click", () => r.post({ channel: "ply-vis", version: 1, type: "navigate", source: o.source })), s.append(u);
     }
   }
-  function T(e, t) {
+  function M(e, t) {
     const o = document.createElement("section"), d = document.createElement("h3");
     d.textContent = e, o.append(d);
     const i = document.createElement("ul");
@@ -477,7 +477,7 @@ function Nt(n, r, g = []) {
     !w.hidden && e.target instanceof Node && !w.contains(e.target) && N();
   };
   window.addEventListener("pointerdown", Te);
-  function M() {
+  function z() {
     if (!y) return;
     ct();
     const e = [...b.querySelectorAll("[data-element-id], [data-ply-id]")], t = a.focusedId ? y.elements[a.focusedId] : void 0;
@@ -528,7 +528,7 @@ function Nt(n, r, g = []) {
     const t = Object.keys(e.elements).length > 0;
     Z.hidden = !t, D.hidden = !t, p.hidden = !t, t || xe(!0, !1), F(), E(), N(), V = void 0, ce(e.svg), m.dataset.empty = "false";
     const o = m.querySelector(".ply-empty");
-    o && o.remove(), B(), M(), U(de());
+    o && o.remove(), B(), z(), U(de());
     const d = Ge(e);
     R.textContent = d.text, d.title ? R.title = d.title : R.removeAttribute("title"), C.textContent = "", typeof window.requestAnimationFrame == "function" && window.requestAnimationFrame(() => pe(!1));
   }
@@ -631,24 +631,24 @@ function Nt(n, r, g = []) {
     }
     P = e, y = ze(ne), E(), N(), Y();
     const t = V === void 0 ? y.svg : y.folded.find((o) => o.depth === V)?.svg ?? y.svg;
-    ce(t), M(), B(), U(de());
+    ce(t), z(), B(), U(de());
   }
   function te(e) {
     const t = y && (Q.get(e) ?? y.elements[e]);
-    t && (O({ selectedId: e, detailsHidden: !1 }), F(), M(), U(t));
+    t && (O({ selectedId: e, detailsHidden: !1 }), F(), z(), U(t));
   }
   function Ne(e) {
     [...b.querySelectorAll("[data-element-id], [data-ply-id]")].find((o) => j(o)?.id === e)?.focus();
   }
   function _(e) {
-    e && !y?.elements[e] || (e && !y.elements[e].parentId && (e = void 0), E(), N(), O({ focusedId: e, selectedId: e, detailsHidden: !e }), F(), M(), U(e ? y?.elements[e] : void 0), pe());
+    e && !y?.elements[e] || (e && !y.elements[e].parentId && (e = void 0), E(), N(), O({ focusedId: e, selectedId: e, detailsHidden: !e }), F(), z(), U(e ? y?.elements[e] : void 0), pe());
   }
   function ft() {
     const e = m.getBoundingClientRect(), o = (a.selectedId ? [...b.querySelectorAll("[data-element-id], [data-ply-id]")].find((d) => j(d)?.id === a.selectedId) : void 0)?.getBoundingClientRect();
     return o ? { x: o.left - e.left + o.width / 2, y: o.top - e.top + o.height / 2 } : { x: e.width / 2, y: e.height / 2 };
   }
   function fe(e, t) {
-    E(), N(), Y(), t ??= ft(), O(Lt(a, Math.min(4, Math.max(0.2, e)), t)), B(), M(), C.textContent = `Zoom ${Math.round(a.zoom * 100)}%`;
+    E(), N(), Y(), t ??= ft(), O(Lt(a, Math.min(4, Math.max(0.2, e)), t)), B(), z(), C.textContent = `Zoom ${Math.round(a.zoom * 100)}%`;
   }
   function pe(e = !0) {
     Y();
@@ -663,13 +663,13 @@ function Nt(n, r, g = []) {
       width: i.width / c,
       height: i.height / c
     };
-    O(Ct({ width: m.clientWidth, height: m.clientHeight }, l)), B(), M();
+    O(Ct({ width: m.clientWidth, height: m.clientHeight }, l)), B(), z();
   }
   f.querySelector('[aria-label="Zoom in"]').addEventListener("click", () => fe(a.zoom * 1.2)), f.querySelector('[aria-label="Zoom out"]').addEventListener("click", () => fe(a.zoom / 1.2)), f.querySelector('[aria-label="Fit canvas"]').addEventListener("click", () => pe()), p.addEventListener("click", () => xe(!a.detailsHidden)), f.querySelectorAll("[data-overlay]").forEach((e) => e.addEventListener("change", () => {
     const t = e.dataset.overlay;
-    O({ overlays: { ...a.overlays, [t]: e.checked } }), M();
+    O({ overlays: { ...a.overlays, [t]: e.checked } }), z();
   })), f.querySelector("[data-fold-detail]").addEventListener("change", (e) => {
-    O({ foldDetail: e.target.checked }), M(), C.textContent = a.foldDetail ? "Detail folds away as you zoom out" : "Detail stays on screen at every zoom";
+    O({ foldDetail: e.target.checked }), z(), C.textContent = a.foldDetail ? "Detail folds away as you zoom out" : "Detail stays on screen at every zoom";
   }), f.querySelector("[data-hover-tooltips]").addEventListener("change", (e) => {
     const t = e.target.checked;
     O({ hoverTooltips: t }), t || (q(), S && document.activeElement !== S && E()), C.textContent = t ? "Tooltips appear on hover" : "Tooltips stay hidden on hover; tabbing to an item still shows one";
@@ -770,7 +770,7 @@ function Nt(n, r, g = []) {
   const je = (e) => {
     St(e.data) && (e.data.type === "artifact" ? le(e.data.envelope) : e.data.type === "capabilities" ? ie = e.data.explain : (a = Ze(a, e.data.state), f.querySelectorAll("[data-overlay]").forEach((t) => {
       t.checked = a.overlays[t.dataset.overlay];
-    }), f.querySelector("[data-fold-detail]").checked = a.foldDetail, f.querySelector("[data-hover-tooltips]").checked = a.hoverTooltips, se(), y && (F(), B(), M(), U(de()))));
+    }), f.querySelector("[data-fold-detail]").checked = a.foldDetail, f.querySelector("[data-hover-tooltips]").checked = a.hoverTooltips, se(), y && (F(), B(), z(), U(de()))));
   }, qe = (e) => {
     C.textContent = `Viewer error: ${e}`, r.post({ channel: "ply-vis", version: 1, type: "error", message: e });
   }, He = (e) => qe(e.message || "Unknown runtime error"), Re = (e) => qe(e.reason instanceof Error ? e.reason.message : String(e.reason));
@@ -778,7 +778,7 @@ function Nt(n, r, g = []) {
   const Ve = typeof MutationObserver == "function" ? new MutationObserver(() => De(ge())) : void 0;
   Ve?.observe(document.body, { attributes: !0, attributeFilter: ["class", "data-vscode-theme-kind"] });
   const Be = typeof window.matchMedia == "function" ? window.matchMedia("(prefers-color-scheme: dark)") : void 0, Fe = () => De(ge());
-  Be?.addEventListener("change", Fe), z.addEventListener("click", () => Ue(!a.optionsHidden)), F(), se();
+  Be?.addEventListener("change", Fe), T.addEventListener("click", () => Ue(!a.optionsHidden)), F(), se();
   for (const e of g) le(e);
   return r.post({ channel: "ply-vis", version: 1, type: "ready" }), g.length || r.post({ channel: "ply-vis", version: 1, type: "request-artifact" }), { load: le, getState: () => a, destroy: () => {
     q(), Y(), window.removeEventListener("message", je), window.removeEventListener("error", He), window.removeEventListener("unhandledrejection", Re), window.removeEventListener("pointerdown", Te), Ve?.disconnect(), Be?.removeEventListener("change", Fe), n.replaceChildren();
