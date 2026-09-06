@@ -24,6 +24,15 @@ export type HostRequest = {
     channel: 'ply-vis';
     version: 1;
     type: 'request-artifact';
+} | {
+    channel: 'ply-vis';
+    version: 1;
+    type: 'explain';
+    code: string;
+} | {
+    channel: 'ply-vis';
+    version: 1;
+    type: 'explain-prompt';
 };
 export type HostResponse = {
     channel: 'ply-vis';

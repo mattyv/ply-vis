@@ -1,4 +1,5 @@
 import type { SourceRange, VisualEnvelope } from '../core/result-source';
+import { isPlyCode } from '../core/ply-code';
 
 export const HOST_PROTOCOL_VERSION = 1 as const;
 export type PersistedViewState = Readonly<Record<string, unknown>>;
@@ -7,7 +8,9 @@ export type ViewerRequest =
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'error'; readonly message: string }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'navigate'; readonly source: SourceRange }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'persist-state'; readonly state: PersistedViewState }
-  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'request-artifact' };
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'request-artifact' }
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain'; readonly code: string }
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain-prompt' };
 export type HostResponse =
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'artifact'; readonly envelope: VisualEnvelope }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'restore-state'; readonly state: PersistedViewState }
@@ -31,12 +34,19 @@ export function parseViewerRequest(value: unknown): ViewerRequest | undefined {
   if (!record(value) || value.channel !== 'ply-vis' || value.version !== HOST_PROTOCOL_VERSION || typeof value.type !== 'string') return undefined;
   switch (value.type) {
     case 'ready':
+    case 'explain-prompt':
     case 'request-artifact':
       return exact(value, ['channel', 'version', 'type']) ? value as ViewerRequest : undefined;
     case 'error':
       return exact(value, ['channel', 'version', 'type', 'message']) && typeof value.message === 'string' ? value as ViewerRequest : undefined;
     case 'persist-state':
       return exact(value, ['channel', 'version', 'type', 'state']) && record(value.state) ? value as ViewerRequest : undefined;
+    case 'explain':
+      // The code is about to become an argument to a spawned process, so it
+      // is checked for shape here rather than trusted because it arrived on
+      // the channel.
+      return exact(value, ['channel', 'version', 'type', 'code']) && typeof value.code === 'string' && isPlyCode(value.code)
+        ? value as ViewerRequest : undefined;
     case 'navigate': {
       if (!exact(value, ['channel', 'version', 'type', 'source'])) return undefined;
       const source = parseExactSource(value.source);

@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import type { LoadState, WorkspaceRoot } from '../core/result-source';
+import type { CodeExplainer } from '../host/panel-controller';
 import { PanelController, type PanelSurface } from '../host/panel-controller';
 import type { StateStore } from '../host/state-store';
 import { createNonce, webviewHtml } from '../host/webview-html';
@@ -20,6 +21,7 @@ export class PlyPanel implements vscode.Disposable {
     private readonly state: StateStore,
     private readonly navigator: SourceNavigator,
     private readonly title = 'Ply Visual',
+    private readonly explainer?: CodeExplainer,
   ) {}
 
   public show(root: WorkspaceRoot, loadState: LoadState): void {
@@ -41,7 +43,7 @@ export class PlyPanel implements vscode.Disposable {
     panel.webview.html = webviewHtml({ scriptUri, styleUri, cspSource: panel.webview.cspSource, nonce: createNonce(randomBytes(16)) });
     this.panel = panel;
     this.controller = new PanelController(new VsCodeSurface(panel.webview), this.state, this.navigator,
-      { error: (message) => { void vscode.window.showErrorMessage(message); } });
+      { error: (message) => { void vscode.window.showErrorMessage(message); } }, this.explainer);
     panel.onDidDispose(() => { this.controller?.dispose(); this.controller = undefined; this.panel = undefined; });
   }
 }

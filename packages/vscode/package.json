@@ -10,32 +10,126 @@
     "url": "https://github.com/mattyv/ply-vis.git"
   },
   "type": "commonjs",
-  "engines": { "vscode": "^1.91.0" },
-  "categories": ["Visualization", "Other"],
-  "activationEvents": ["onView:ply.visualRuns", "onCommand:ply.openSpec", "onCommand:ply.openVisual", "onCommand:ply.openVisualInNewTab", "onCommand:ply.refreshVisual", "onCommand:ply.selectRoot", "onCommand:ply.runAndPublish", "onCommand:ply.renderSpec"],
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:ply.visualRuns",
+    "onCommand:ply.openSpec",
+    "onCommand:ply.openVisual",
+    "onCommand:ply.openVisualInNewTab",
+    "onCommand:ply.refreshVisual",
+    "onCommand:ply.selectRoot",
+    "onCommand:ply.runAndPublish",
+    "onCommand:ply.renderSpec",
+    "onCommand:ply.explainCode",
+    "onCommand:ply.explainAnyCode"
+  ],
   "main": "./out/src/extension.js",
   "contributes": {
-    "viewsContainers": { "activitybar": [{ "id": "plyVisuals", "title": "Ply", "icon": "media/ply.svg" }] },
-    "views": { "plyVisuals": [{ "id": "ply.visualRuns", "name": "Visuals" }] },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "plyVisuals",
+          "title": "Ply",
+          "icon": "media/ply.svg"
+        }
+      ]
+    },
+    "views": {
+      "plyVisuals": [
+        {
+          "id": "ply.visualRuns",
+          "name": "Visuals"
+        }
+      ]
+    },
     "commands": [
-      { "command": "ply.openSpec", "title": "Open Ply Spec" },
-      { "command": "ply.openVisual", "title": "Open Visual" },
-      { "command": "ply.openVisualInNewTab", "title": "Open in New Tab" },
-      { "command": "ply.refreshVisual", "title": "Ply: Refresh", "icon": "$(refresh)" },
-      { "command": "ply.selectRoot", "title": "Ply: Select Spec" },
-      { "command": "ply.runAndPublish", "title": "Run and Publish View" },
-      { "command": "ply.renderSpec", "title": "Render Ply Spec" }
+      {
+        "command": "ply.openSpec",
+        "title": "Open Ply Spec"
+      },
+      {
+        "command": "ply.openVisual",
+        "title": "Open Visual"
+      },
+      {
+        "command": "ply.openVisualInNewTab",
+        "title": "Open in New Tab"
+      },
+      {
+        "command": "ply.refreshVisual",
+        "title": "Ply: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "ply.selectRoot",
+        "title": "Ply: Select Spec"
+      },
+      {
+        "command": "ply.runAndPublish",
+        "title": "Run and Publish View"
+      },
+      {
+        "command": "ply.renderSpec",
+        "title": "Render Ply Spec"
+      },
+      {
+        "command": "ply.explainCode",
+        "title": "Ply: Explain This Code"
+      },
+      {
+        "command": "ply.explainAnyCode",
+        "title": "Ply: Explain a Code..."
+      }
     ],
     "menus": {
       "view/title": [
-        { "command": "ply.refreshVisual", "when": "view == ply.visualRuns", "group": "navigation" }
+        {
+          "command": "ply.refreshVisual",
+          "when": "view == ply.visualRuns",
+          "group": "navigation"
+        }
       ],
       "view/item/context": [
-        { "command": "ply.openSpec", "when": "view == ply.visualRuns && viewItem =~ /^ply\\.(namedSpec|workspaceSpec)$/", "group": "navigation@1" },
-        { "command": "ply.renderSpec", "when": "view == ply.visualRuns && viewItem =~ /^ply\\.(namedSpec|workspaceSpec)$/", "group": "navigation@2" },
-        { "command": "ply.runAndPublish", "when": "view == ply.visualRuns && viewItem == ply.workspaceSpec", "group": "navigation@2" },
-        { "command": "ply.openVisual", "when": "view == ply.visualRuns && viewItem == ply.workspaceSpec", "group": "navigation@3" },
-        { "command": "ply.openVisualInNewTab", "when": "view == ply.visualRuns && viewItem == ply.visualRun", "group": "navigation" }
+        {
+          "command": "ply.openSpec",
+          "when": "view == ply.visualRuns && viewItem =~ /^ply\\.(namedSpec|workspaceSpec)$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ply.renderSpec",
+          "when": "view == ply.visualRuns && viewItem =~ /^ply\\.(namedSpec|workspaceSpec)$/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "ply.runAndPublish",
+          "when": "view == ply.visualRuns && viewItem == ply.workspaceSpec",
+          "group": "navigation@2"
+        },
+        {
+          "command": "ply.openVisual",
+          "when": "view == ply.visualRuns && viewItem == ply.workspaceSpec",
+          "group": "navigation@3"
+        },
+        {
+          "command": "ply.openVisualInNewTab",
+          "when": "view == ply.visualRuns && viewItem == ply.visualRun",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ply.explainCode",
+          "when": "false"
+        },
+        {
+          "command": "ply.explainAnyCode"
+        }
       ]
     }
   },
@@ -47,7 +141,9 @@
     "test:extension": "npm run build && node ./out/test/extension/run-extension-tests.js",
     "test:webview": "playwright test test/webview-smoke.spec.ts"
   },
-  "dependencies": { "@ply/vis": "0.1.0" },
+  "dependencies": {
+    "@ply/vis": "0.1.0"
+  },
   "devDependencies": {
     "@types/node": "22.17.2",
     "@types/vscode": "1.91.0",

@@ -109,6 +109,7 @@
   #stage { position: fixed; inset: 0; }
   #stage canvas { display: block; cursor: grab; }
   #stage canvas.dragging { cursor: grabbing; }
+  #stage canvas.panning { cursor: move; }
 
   .bar {
     position: fixed; left: 0; right: 0; top: 0;
@@ -202,7 +203,7 @@
     <button data-layout="cube" aria-pressed="false">Nested glass</button>
     <button data-layout="flat" aria-pressed="false">Flat</button>
   </div>
-  <div class="hint">drag to orbit · scroll to zoom · click a box to swing it to the front</div>
+  <div class="hint">drag to orbit · space-drag or middle-drag to move it · scroll to zoom · click a box to swing it to the front</div>
 </div>
 
 <div class="caption" id="caption">
@@ -1104,18 +1105,55 @@
   }
   const cv = renderer.domElement;
   let drag = null;
-  cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, moved: false }; cv.setPointerCapture(e.pointerId); cv.classList.add('dragging'); });
+  let spaceHeld = false;
+  // Space or the middle button pans instead of orbiting. Panning moves the orbit
+  // target across the screen plane, so what you drag to the middle stays the thing
+  // orbit and zoom pivot around.
+  addEventListener('keydown', e => {
+    if (e.code !== 'Space' || spaceHeld) return;
+    e.preventDefault();             // Space scrolls the page otherwise
+    spaceHeld = true;
+    cv.classList.add('panning');
+  });
+  addEventListener('keyup', e => {
+    if (e.code !== 'Space') return;
+    spaceHeld = false;
+    cv.classList.remove('panning');
+  });
+  // A window that loses focus mid-drag never delivers the keyup, which would leave
+  // pan stuck on until the next Space press.
+  addEventListener('blur', () => { spaceHeld = false; cv.classList.remove('panning'); });
+
+  const panRight = new THREE.Vector3(), panUp = new THREE.Vector3();
+  function panBy(dx, dy) {
+    panRight.setFromMatrixColumn(camera.matrix, 0);
+    panUp.setFromMatrixColumn(camera.matrix, 1);
+    // Scaled by distance so a drag moves the same amount of picture at any zoom.
+    const k = orbit.dist * 0.0014;
+    orbit.target.addScaledVector(panRight, -dx * k).addScaledVector(panUp, dy * k);
+  }
+
+  cv.addEventListener('pointerdown', e => {
+    drag = { x: e.clientX, y: e.clientY, moved: false, pan: spaceHeld || e.button === 1 };
+    cv.setPointerCapture(e.pointerId);
+    cv.classList.add(drag.pan ? 'panning' : 'dragging');
+  });
   cv.addEventListener('pointermove', e => {
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
-    orbit.az -= dx * 0.006; orbit.el = Math.max(-1.2, Math.min(1.35, orbit.el + dy * 0.005));
+    if (drag.pan) {
+      panBy(dx, dy);
+    } else {
+      orbit.az -= dx * 0.006; orbit.el = Math.max(-1.2, Math.min(1.35, orbit.el + dy * 0.005));
+    }
     drag.x = e.clientX; drag.y = e.clientY;
     applyCamera();
   });
   cv.addEventListener('pointerup', e => {
     cv.classList.remove('dragging');
-    if (drag && !drag.moved) pick(e);
+    if (!spaceHeld) cv.classList.remove('panning');
+    if (drag && !drag.moved && !drag.pan) pick(e);
     drag = null;
   });
   cv.addEventListener('wheel', e => { e.preventDefault(); orbit.dist = Math.max(5, Math.min(45, orbit.dist * (1 + Math.sign(e.deltaY) * 0.08))); applyCamera(); }, { passive: false });
