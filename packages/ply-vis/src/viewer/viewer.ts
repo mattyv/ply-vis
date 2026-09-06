@@ -999,7 +999,19 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
    */
   function clearDrawing(message: string) {
     active = undefined;
+    // The *unsanitised* copy too, and this is the whole of the second
+    // defect here: `retheme` repaints from `rawEnvelope`, so leaving it set
+    // meant a light/dark flip brought the cleared drawing straight back --
+    // onto a canvas still captioned with the reason it was empty. A reader
+    // would be looking at another project's run with an explanation
+    // underneath saying they were not. Found by external review 2026-09-06,
+    // on the fix for the clear that preceded it.
+    rawEnvelope = undefined;
     paintedDepth = undefined;
+    // Both of these name elements of the envelope just discarded. Left set,
+    // the next drawing would open focused on, or with details for, an id
+    // that meant something in a different run.
+    state = { ...state, selectedId: undefined, focusedId: undefined };
     stage.innerHTML = '';
     hideTooltip();
     hideContextMenu();
