@@ -30,15 +30,20 @@ class PlyHostMessageTest {
     @Test
     fun `understands the acknowledgement the viewer sends after drawing`() {
         val message = PlyHostMessage.parse(
-            """{"channel":"ply-vis","version":1,"type":"artifact-accepted","runId":"r1"}"""
+            """{"channel":"ply-vis","version":1,"type":"artifact-accepted","deliveryId":"d1"}"""
         ) as PlyHostMessage.ArtifactAccepted
-        assertEquals("r1", message.runId)
+        assertEquals("d1", message.deliveryId)
     }
 
+    /** It names the delivery, not the run: two deliveries can carry one run,
+     *  and matching on the run's id bound navigation to the wrong one. */
     @Test
-    fun `requires a run id on the acknowledgement`() {
+    fun `requires a delivery id on the acknowledgement`() {
         assertFailsWith<IllegalArgumentException> {
             PlyHostMessage.parse("""{"channel":"ply-vis","version":1,"type":"artifact-accepted"}""")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            PlyHostMessage.parse("""{"channel":"ply-vis","version":1,"type":"artifact-accepted","runId":"r1"}""")
         }
     }
 

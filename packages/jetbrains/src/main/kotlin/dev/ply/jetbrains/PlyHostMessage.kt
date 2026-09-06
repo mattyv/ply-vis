@@ -17,8 +17,9 @@ sealed interface PlyHostMessage {
     data object RequestArtifact : PlyHostMessage
     data object Ready : PlyHostMessage
     data class ViewerError(val message: String) : PlyHostMessage
-    /** The viewer drew this run. See `PlyToolWindowPanel.handleMessage`. */
-    data class ArtifactAccepted(val runId: String) : PlyHostMessage
+    /** The viewer drew the artifact sent under this delivery id. It names a
+     *  *delivery*, not a run: two deliveries can carry the same run. */
+    data class ArtifactAccepted(val deliveryId: String) : PlyHostMessage
     /**
      * Asking for a diagnostic to be explained. The JetBrains plugin has no
      * explainer, and never advertises one, so the viewer does not offer the
@@ -67,8 +68,8 @@ sealed interface PlyHostMessage {
                 // "Unsupported Ply host message type" in the status line
                 // under a drawing that had loaded perfectly.
                 "artifact-accepted" -> {
-                    requireExact(root, "channel", "version", "type", "runId")
-                    ArtifactAccepted(root.get("runId")?.asString ?: error("artifact-accepted needs a runId"))
+                    requireExact(root, "channel", "version", "type", "deliveryId")
+                    ArtifactAccepted(root.get("deliveryId")?.asString ?: error("artifact-accepted needs a deliveryId"))
                 }
                 "explain-prompt" -> {
                     requireExact(root, "channel", "version", "type")

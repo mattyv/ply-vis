@@ -11,7 +11,7 @@ export type ViewerRequest =
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'request-artifact' }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain'; readonly code: string }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain-prompt' }
-  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'artifact-accepted'; readonly runId: string };
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'artifact-accepted'; readonly deliveryId: string };
 // A second, hand-written copy of the viewer's own `HostResponse`. It exists
 // because this package types the payloads with its own `SourceRange` and
 // `PersistedViewState` rather than the viewer's, and it had **drifted**: it
@@ -24,7 +24,7 @@ export type ViewerRequest =
 // member now, so a member added to one and not the other fails here rather
 // than shipping as a message nobody receives.
 export type HostResponse =
-  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'artifact'; readonly envelope: VisualEnvelope }
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'artifact'; readonly envelope: VisualEnvelope; readonly deliveryId: string }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'restore-state'; readonly state: PersistedViewState }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'capabilities'; readonly explain: boolean; readonly installedTool?: string | undefined }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'clear'; readonly message: string };
@@ -53,7 +53,7 @@ export function parseViewerRequest(value: unknown): ViewerRequest | undefined {
     case 'error':
       return exact(value, ['channel', 'version', 'type', 'message']) && typeof value.message === 'string' ? value as ViewerRequest : undefined;
     case 'artifact-accepted':
-      return exact(value, ['channel', 'version', 'type', 'runId']) && typeof value.runId === 'string'
+      return exact(value, ['channel', 'version', 'type', 'deliveryId']) && typeof value.deliveryId === 'string'
         ? value as ViewerRequest : undefined;
     case 'persist-state':
       return exact(value, ['channel', 'version', 'type', 'state']) && record(value.state) ? value as ViewerRequest : undefined;
@@ -73,7 +73,8 @@ export function parseViewerRequest(value: unknown): ViewerRequest | undefined {
   }
 }
 
-export const artifactMessage = (envelope: VisualEnvelope): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'artifact', envelope });
+export const artifactMessage = (envelope: VisualEnvelope, deliveryId: string): HostResponse =>
+  ({ channel: 'ply-vis', version: 1, type: 'artifact', envelope, deliveryId });
 export const restoreStateMessage = (state: PersistedViewState): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'restore-state', state });
 /** What this host can do beyond drawing. The viewer hides an action rather
  * than offering one the host will fail -- JetBrains reads the same messages
