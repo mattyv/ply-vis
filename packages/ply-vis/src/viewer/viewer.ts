@@ -1034,10 +1034,16 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     // on the fix for the clear that preceded it.
     rawEnvelope = undefined;
     paintedDepth = undefined;
-    // Both of these name elements of the envelope just discarded. Left set,
-    // the next drawing would open focused on, or with details for, an id
-    // that meant something in a different run.
-    state = { ...state, selectedId: undefined, focusedId: undefined };
+    // All three name something in the envelope just discarded. Left set, the
+    // next drawing would open focused on, or with details for, an id that
+    // meant something in a different run -- and the details pane would sit
+    // open in the meantime still showing the declaration, verdict and
+    // evidence of the last thing clicked, beside a caption saying there is
+    // nothing to show. `detailsHidden` is patched here rather than through
+    // `setDetailsHidden` for the same reason `show` does it: closing the pane
+    // because there is nothing in it must not overwrite the reader's own
+    // preference for the next drawing that has something.
+    state = { ...state, selectedId: undefined, focusedId: undefined, detailsHidden: true };
     stage.innerHTML = '';
     hideTooltip();
     hideContextMenu();
@@ -1052,6 +1058,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     }
     breadcrumbs.hidden = true;
     inspectorToggle.hidden = true;
+    renderInspector(undefined);
     renderDetailsVisibility();
     provenance.textContent = '';
     provenance.removeAttribute('title');
