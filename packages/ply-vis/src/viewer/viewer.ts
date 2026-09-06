@@ -51,7 +51,7 @@ const html = `
         <label><input type="checkbox" data-fold-detail checked> Fold detail when zoomed out</label>
         <label><input type="checkbox" data-hover-tooltips checked> Show tooltips on hover</label>
       </fieldset>
-      <fieldset><legend>Overlays</legend>
+      <fieldset data-evidence-filters><legend>Overlays</legend>
         <label><input type="checkbox" data-overlay="earned" checked> Earned</label>
         <label><input type="checkbox" data-overlay="gap" checked> Gap</label>
         <label><input type="checkbox" data-overlay="violation" checked> Violation</label>
@@ -86,7 +86,11 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const inspectorToggle = root.querySelector<HTMLButtonElement>('.ply-inspector-toggle')!;
   const workspace = root.querySelector<HTMLElement>('.ply-workspace')!;
   const status = root.querySelector<HTMLElement>('.ply-status')!;
-  const overlays = root.querySelector<HTMLFieldSetElement>('.ply-toolbar fieldset')!;
+  // Named, not positional. This used to take the toolbar's *first* fieldset,
+  // which is Detail -- so a drawing with no evidence in it hid folding and
+  // tooltips and left the evidence filters on show, the exact opposite of
+  // what was intended (external review, 2026-09-06).
+  const overlays = root.querySelector<HTMLFieldSetElement>('.ply-toolbar [data-evidence-filters]')!;
   const options = root.querySelector<HTMLElement>('.ply-options')!;
   const optionsToggle = root.querySelector<HTMLButtonElement>('.ply-options-toggle')!;
   const breadcrumbs = root.querySelector<HTMLElement>('.ply-breadcrumbs')!;
@@ -108,6 +112,10 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   let tooltipTimer: number | undefined;
   /** What had focus before the context menu opened, so Escape can hand it back. */
   let menuInvoker: HTMLElement | SVGElement | undefined;
+  /** Whether the host can answer "what does this code mean". Off until a
+   * host says otherwise: the viewer is shared, and a host that cannot run
+   * Ply must not be offered an action it will fail. */
+  let canExplain = false;
 
   const postState = () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'persist-state', state });
   const setState = (patch: Partial<ViewState>, persist = true) => { state = updateViewState(state, patch); if (persist) postState(); };
@@ -492,7 +500,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     // only has to say which code was asked about.
     if (active) {
       const diagnosticsById = new Map(active.diagnostics.map((diagnostic) => [diagnostic.id, diagnostic]));
-      for (const id of element?.diagnosticIds ?? []) {
+      for (const id of canExplain ? element?.diagnosticIds ?? [] : []) {
         const code = diagnosticsById.get(id)?.code;
         if (!code) continue;
         entries.push({ label: `Explain ${code}`, run: () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'explain', code }) });
@@ -503,7 +511,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     // without this the menu opened on nothing at all and read as broken.
     // Empty canvas is deliberately left alone: no item, no menu of ours, so
     // the host's own right-click menu still works there.
-    if (node) entries.push({ label: 'Explain a code…', run: () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'explain-prompt' }) });
+    if (node && canExplain) entries.push({ label: 'Explain a code…', run: () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'explain-prompt' }) });
     if (!entries.length) return;
 
     event.preventDefault();
@@ -979,6 +987,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const receive = (event: MessageEvent) => {
     if (!isHostResponse(event.data)) return;
     if (event.data.type === 'artifact') load(event.data.envelope);
+    else if (event.data.type === 'capabilities') canExplain = event.data.explain;
     else {
       state = updateViewState(state, event.data.state);
       root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => { input.checked = state.overlays[input.dataset.overlay as keyof ViewState['overlays']]; });
