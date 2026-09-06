@@ -791,6 +791,14 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       rawEnvelope = parsed;
       show(sanitizeEnvelope(parsed));
       delete root.dataset.error;
+      // The host binds source navigation to whatever it last heard was
+      // drawn. Saying so here is the only way it can know: an envelope the
+      // host accepted and this rejected would otherwise leave it opening
+      // one project's files against another project's drawing.
+      bridge.post({
+        channel: 'ply-vis', version: 1, type: 'artifact-accepted',
+        runId: parsed.run.id,
+      });
       return true;
     } catch (error) {
       const message = error instanceof EnvelopeError || error instanceof Error ? error.message : 'Unknown artifact error';
