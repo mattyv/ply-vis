@@ -27,6 +27,11 @@ export class PanelController implements Disposable {
    * see, or a source link in one project's drawing opened the same relative
    * path inside another (external review, 2026-09-06). */
   private displayedRoot: WorkspaceRoot | undefined;
+  /** The root whose artifact was last *sent*, and the run id it carried.
+   *  Promoted to `displayedRoot` only when the viewer says it drew that run
+   *  -- the host and the viewer validate separately, and an envelope this
+   *  side accepts is not one the other side drew. */
+  private pending: { root: WorkspaceRoot; runId: string } | undefined;
   private readonly subscription: Disposable;
   public constructor(private readonly surface: PanelSurface, private readonly state: StateStore,
     private readonly navigator: SourceNavigator, private readonly reporter: HostReporter,
@@ -38,7 +43,7 @@ export class PanelController implements Disposable {
     this.root = root;
     this.loadState = state;
     if (state.snapshot) {
-      this.displayedRoot = root;
+      this.pending = { root, runId: state.snapshot.envelope.run.id };
       void this.surface.postMessage(artifactMessage(state.snapshot.envelope));
     } else if (this.displayedRoot && this.displayedRoot.path !== root.path) {
       // Nothing to replace the drawing with, and it belongs to a different
@@ -53,6 +58,7 @@ export class PanelController implements Disposable {
         `No completed Ply run for ${root.name} yet. Showing nothing rather than ${this.displayedRoot.name}'s last run, which describes a different project.`,
       ));
       this.displayedRoot = undefined;
+      this.pending = undefined;
     }
     // A notice *about* a drawing that is still on screen must not clear it,
     // so those two situations no longer share one message: with a snapshot
@@ -77,6 +83,16 @@ export class PanelController implements Disposable {
     if (message.type === 'explain') {
       if (!this.root) { this.reporter.error('Select a Ply workspace root before explaining a code.'); return; }
       await this.explainer?.explain(this.root, message.code);
+      return;
+    }
+    if (message.type === 'artifact-accepted') {
+      // The viewer drew it, so this is now what the reader is looking at.
+      // An envelope it refused never gets here, which is the point: source
+      // links keep resolving against the drawing that is actually on screen.
+      if (this.pending && this.pending.runId === message.runId) {
+        this.displayedRoot = this.pending.root;
+        this.pending = undefined;
+      }
       return;
     }
     if (message.type === 'navigate') {

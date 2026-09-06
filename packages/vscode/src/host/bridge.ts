@@ -10,7 +10,8 @@ export type ViewerRequest =
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'persist-state'; readonly state: PersistedViewState }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'request-artifact' }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain'; readonly code: string }
-  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain-prompt' };
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain-prompt' }
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'artifact-accepted'; readonly runId: string };
 // A second, hand-written copy of the viewer's own `HostResponse`. It exists
 // because this package types the payloads with its own `SourceRange` and
 // `PersistedViewState` rather than the viewer's, and it had **drifted**: it
@@ -51,6 +52,9 @@ export function parseViewerRequest(value: unknown): ViewerRequest | undefined {
       return exact(value, ['channel', 'version', 'type']) ? value as ViewerRequest : undefined;
     case 'error':
       return exact(value, ['channel', 'version', 'type', 'message']) && typeof value.message === 'string' ? value as ViewerRequest : undefined;
+    case 'artifact-accepted':
+      return exact(value, ['channel', 'version', 'type', 'runId']) && typeof value.runId === 'string'
+        ? value as ViewerRequest : undefined;
     case 'persist-state':
       return exact(value, ['channel', 'version', 'type', 'state']) && record(value.state) ? value as ViewerRequest : undefined;
     case 'explain':

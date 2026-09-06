@@ -9,7 +9,13 @@ export type HostRequest =
   | { channel: 'ply-vis'; version: 1; type: 'persist-state'; state: ViewState }
   | { channel: 'ply-vis'; version: 1; type: 'request-artifact' }
   | { channel: 'ply-vis'; version: 1; type: 'explain'; code: string }
-  | { channel: 'ply-vis'; version: 1; type: 'explain-prompt' };
+  | { channel: 'ply-vis'; version: 1; type: 'explain-prompt' }
+  // "I drew this one." The host and the viewer validate separately, and
+  // the host cannot otherwise tell whether what it sent arrived: it sent an
+  // envelope the viewer refused, recorded it as displayed, and then opened
+  // that project's files for source links in the drawing still on screen
+  // from the previous one (external review, 2026-09-06).
+  | { channel: 'ply-vis'; version: 1; type: 'artifact-accepted'; runId: string };
 export type HostResponse =
   | { channel: 'ply-vis'; version: 1; type: 'artifact'; envelope: VisualEnvelope }
   | { channel: 'ply-vis'; version: 1; type: 'restore-state'; state: ViewState }
