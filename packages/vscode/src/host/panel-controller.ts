@@ -18,6 +18,11 @@ export interface CodeExplainer {
   prompt(root: WorkspaceRoot): Promise<void>;
 }
 
+/** How many unacknowledged artifacts to remember. Loads are one per project
+ *  switch or index change, and each acknowledgement clears everything older,
+ *  so this is only ever reached by a run of refused artifacts. */
+const PENDING_LIMIT = 32;
+
 export class PanelController implements Disposable {
   private loadState: LoadState = {};
   private root: WorkspaceRoot | undefined;
@@ -27,11 +32,19 @@ export class PanelController implements Disposable {
    * see, or a source link in one project's drawing opened the same relative
    * path inside another (external review, 2026-09-06). */
   private displayedRoot: WorkspaceRoot | undefined;
-  /** The root whose artifact was last *sent*, and the run id it carried.
-   *  Promoted to `displayedRoot` only when the viewer says it drew that run
-   *  -- the host and the viewer validate separately, and an envelope this
-   *  side accepts is not one the other side drew. */
-  private pending: { root: WorkspaceRoot; runId: string } | undefined;
+  /** Every artifact sent and not yet acknowledged, oldest first, each with
+   *  the run id it carried. One is promoted to `displayedRoot` when the
+   *  viewer says it drew that run -- the host and the viewer validate
+   *  separately, and an envelope this side accepts is not one the other side
+   *  drew.
+   *
+   *  This is a list rather than a single slot because acknowledgements are
+   *  not guaranteed to arrive before the next load is posted. With one slot,
+   *  a second load overwrote the first's identity, the first's
+   *  acknowledgement then matched nothing, and `displayedRoot` kept pointing
+   *  at a project two switches back -- so a source link in the drawing on
+   *  screen opened a file from a project the reader had left twice over. */
+  private pending: { root: WorkspaceRoot; runId: string }[] = [];
   private readonly subscription: Disposable;
   public constructor(private readonly surface: PanelSurface, private readonly state: StateStore,
     private readonly navigator: SourceNavigator, private readonly reporter: HostReporter,
@@ -43,7 +56,11 @@ export class PanelController implements Disposable {
     this.root = root;
     this.loadState = state;
     if (state.snapshot) {
-      this.pending = { root, runId: state.snapshot.envelope.run.id };
+      this.pending.push({ root, runId: state.snapshot.envelope.run.id });
+      // An artifact the viewer refuses is never acknowledged, so its entry
+      // would sit here forever. The list is bounded rather than pruned by
+      // rejection, because a rejection carries no run id to prune by.
+      if (this.pending.length > PENDING_LIMIT) this.pending.shift();
       void this.surface.postMessage(artifactMessage(state.snapshot.envelope));
     } else if (this.displayedRoot && this.displayedRoot.path !== root.path) {
       // Nothing to replace the drawing with, and it belongs to a different
@@ -58,7 +75,7 @@ export class PanelController implements Disposable {
         `No completed Ply run for ${root.name} yet. Showing nothing rather than ${this.displayedRoot.name}'s last run, which describes a different project.`,
       ));
       this.displayedRoot = undefined;
-      this.pending = undefined;
+      this.pending = [];
     }
     // A notice *about* a drawing that is still on screen must not clear it,
     // so those two situations no longer share one message: with a snapshot
@@ -89,9 +106,12 @@ export class PanelController implements Disposable {
       // The viewer drew it, so this is now what the reader is looking at.
       // An envelope it refused never gets here, which is the point: source
       // links keep resolving against the drawing that is actually on screen.
-      if (this.pending && this.pending.runId === message.runId) {
-        this.displayedRoot = this.pending.root;
-        this.pending = undefined;
+      const at = this.pending.findIndex((sent) => sent.runId === message.runId);
+      if (at >= 0) {
+        this.displayedRoot = this.pending[at]!.root;
+        // Anything posted before it was either refused or superseded; either
+        // way it is not what the reader is looking at now.
+        this.pending.splice(0, at + 1);
       }
       return;
     }

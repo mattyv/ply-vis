@@ -51,9 +51,23 @@ function members(source: string, unionName: string): string[] {
  * another spot-check: a member added to one declaration and not the other
  * fails here, whatever the member is.
  */
-describe('the two copies of the host protocol', () => {
+/**
+ * The message types the Kotlin parser's `when` actually handles. Same
+ * reasoning as `members` above: what drifts is a hand-written declaration,
+ * and no compiler can compare it to a TypeScript union.
+ */
+function kotlinHandledTypes(source: string): string[] {
+  const start = source.indexOf('fun parse(json: String)');
+  if (start < 0) throw new Error('no parse function in the JetBrains host message');
+  const end = source.indexOf('private fun', start);
+  if (end < 0) throw new Error('parse function has no end');
+  return [...source.slice(start, end).matchAll(/^\s*"([a-z-]+)"\s*->/gm)].map((m) => m[1]!);
+}
+
+describe('the three copies of the host protocol', () => {
   const viewer = read('packages/ply-vis/src/host/messages.ts');
   const host = read('packages/vscode/src/host/bridge.ts');
+  const jetbrains = read('packages/jetbrains/src/main/kotlin/dev/ply/jetbrains/PlyHostMessage.kt');
 
   it('agree on what the host may send the viewer', () => {
     expect([...members(host, 'HostResponse')].sort())
@@ -65,6 +79,24 @@ describe('the two copies of the host protocol', () => {
       .toEqual([...members(viewer, 'HostRequest')].sort());
   });
 
+  /**
+   * And a third hand-written copy, in Kotlin. Nothing compared it to either
+   * of the other two, and it fell behind the moment `artifact-accepted` was
+   * added to the viewer: JetBrains parsed every successful load as an
+   * unsupported message type and put an error in the status line under a
+   * drawing that had loaded perfectly.
+   *
+   * That is the same defect as the one above -- one copy of a protocol
+   * taught something the others were not -- and the fix for the first one
+   * did not cover it because the test only knew about two copies.
+   *
+   * Reported by external review 2026-09-06.
+   */
+  it('agree with the JetBrains host on what the viewer may send', () => {
+    expect(kotlinHandledTypes(jetbrains).sort())
+      .toEqual([...members(viewer, 'HostRequest')].sort());
+  });
+
   // The guard is only worth having if it reads real members. A declaration
   // this parser silently returned nothing for would make both tests above
   // pass by comparing two empty lists — the vacuous-pass failure, one level
@@ -73,5 +105,7 @@ describe('the two copies of the host protocol', () => {
     expect(members(viewer, 'HostResponse').length).toBeGreaterThan(2);
     expect(members(viewer, 'HostRequest').length).toBeGreaterThan(2);
     expect(members(viewer, 'HostResponse')).toContain('clear');
+    expect(kotlinHandledTypes(jetbrains).length).toBeGreaterThan(2);
+    expect(kotlinHandledTypes(jetbrains)).toContain('navigate');
   });
 });

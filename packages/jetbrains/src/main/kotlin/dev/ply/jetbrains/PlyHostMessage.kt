@@ -17,6 +17,16 @@ sealed interface PlyHostMessage {
     data object RequestArtifact : PlyHostMessage
     data object Ready : PlyHostMessage
     data class ViewerError(val message: String) : PlyHostMessage
+    /** The viewer drew this run. See `PlyToolWindowPanel.handleMessage`. */
+    data class ArtifactAccepted(val runId: String) : PlyHostMessage
+    /**
+     * Asking for a diagnostic to be explained. The JetBrains plugin has no
+     * explainer, and never advertises one, so the viewer does not offer the
+     * menu entry that sends these -- but "we don't do that here" and "that
+     * is not a message" are different answers, and only the first is true.
+     */
+    data object ExplainPrompt : PlyHostMessage
+    data class Explain(val code: String) : PlyHostMessage
 
     companion object {
         fun parse(json: String): PlyHostMessage {
@@ -48,6 +58,25 @@ sealed interface PlyHostMessage {
                 "error" -> {
                     requireExact(root, "channel", "version", "type", "message")
                     ViewerError(root.get("message")?.asString ?: "Unknown viewer error")
+                }
+                // Every type the shared viewer can send has a case here, and
+                // a test compares this `when` against the viewer's own union
+                // so it stays that way. It did not before: `artifact-accepted`
+                // was added to the viewer and every successful load in
+                // JetBrains fell through to the `else` below, putting
+                // "Unsupported Ply host message type" in the status line
+                // under a drawing that had loaded perfectly.
+                "artifact-accepted" -> {
+                    requireExact(root, "channel", "version", "type", "runId")
+                    ArtifactAccepted(root.get("runId")?.asString ?: error("artifact-accepted needs a runId"))
+                }
+                "explain-prompt" -> {
+                    requireExact(root, "channel", "version", "type")
+                    ExplainPrompt
+                }
+                "explain" -> {
+                    requireExact(root, "channel", "version", "type", "code")
+                    Explain(root.get("code")?.asString ?: error("explain needs a code"))
                 }
                 else -> error("Unsupported Ply host message type `$type`")
             }

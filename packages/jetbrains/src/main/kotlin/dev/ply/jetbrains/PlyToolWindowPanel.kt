@@ -27,6 +27,17 @@ import javax.swing.Timer
 
 class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
     private val gson = Gson()
+
+    /** The run the viewer said it drew. Source links resolve against this. */
+    private var displayed: LoadedPlyRun? = null
+
+    /** Artifacts sent and not yet acknowledged, oldest first. */
+    private val inFlight = ArrayDeque<LoadedPlyRun>()
+
+    /** How many unacknowledged artifacts to remember. Each acknowledgement
+     *  clears everything older, so this is only reached by a run of refused
+     *  ones. */
+    private val IN_FLIGHT_LIMIT = 32
     private val projectState = project.service<PlyProjectService>()
     private val viewState = projectState.viewState
     private val artifacts = projectState.artifacts
@@ -153,9 +164,27 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
     private fun show(display: PlyPanelDisplay) {
         status.text = display.status
         when (display) {
-            is PlyPanelDisplay.Draw -> sendEnvelope(display.envelopeJson)
-            is PlyPanelDisplay.Clear -> sendClear(display.status)
+            is PlyPanelDisplay.Draw -> {
+                loaded?.let { record(it) }
+                sendEnvelope(display.envelopeJson)
+            }
+            is PlyPanelDisplay.Clear -> {
+                displayed = null
+                inFlight.clear()
+                sendClear(display.status)
+            }
         }
+    }
+
+    /**
+     * Remembers an artifact sent and not yet acknowledged. An artifact the
+     * viewer refuses is never acknowledged, so entries are bounded rather
+     * than pruned on rejection -- a rejection carries no run id to prune by.
+     */
+    private fun record(run: LoadedPlyRun) {
+        inFlight.removeAll { it.entry.id == run.entry.id }
+        inFlight.addLast(run)
+        while (inFlight.size > IN_FLIGHT_LIMIT) inFlight.removeFirst()
     }
 
     private fun pollIndex() {
@@ -172,7 +201,13 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         try {
             when (val message = PlyHostMessage.parse(raw)) {
                 is PlyHostMessage.NavigateSource -> {
-                    val root = loaded?.root ?: error("No Ply run is loaded")
+                    // The run the viewer *drew*, never the one last sent.
+                    // They differ when the viewer refuses an artifact and
+                    // keeps the previous drawing up, and opening the sent
+                    // one's path lands the reader in a project they are not
+                    // looking at -- the same defect the VS Code host was
+                    // reported for.
+                    val root = displayed?.root ?: error("No Ply run is on screen")
                     if (!PlySourceNavigator.navigate(project, root, message)) {
                         error("The recorded source location no longer resolves")
                     }
@@ -184,6 +219,20 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                 }
                 PlyHostMessage.RequestArtifact -> resend()
                 is PlyHostMessage.ViewerError -> status.text = message.message
+                is PlyHostMessage.ArtifactAccepted -> {
+                    val at = inFlight.indexOfFirst { it.entry.id == message.runId }
+                    if (at >= 0) {
+                        displayed = inFlight[at]
+                        // Anything sent before it was refused or superseded.
+                        repeat(at + 1) { inFlight.removeFirst() }
+                    }
+                }
+                // The plugin has no explainer and never advertises one, so
+                // the viewer does not offer the entry that sends these. If
+                // that ever changes, the reader gets a sentence rather than
+                // "unsupported message type".
+                PlyHostMessage.ExplainPrompt, is PlyHostMessage.Explain ->
+                    status.text = "Explaining a diagnostic is not available in the JetBrains plugin yet."
             }
         } catch (error: Exception) {
             status.text = error.message ?: "Invalid viewer message"
@@ -199,7 +248,16 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
      */
     private fun resend() {
         val run = loaded
-        if (run != null) sendEnvelope(run.envelopeJson) else sendClear(status.text)
+        if (run != null) {
+            // A resend awaits acknowledgement exactly as a first send does:
+            // a viewer that has just come up has drawn nothing yet.
+            record(run)
+            sendEnvelope(run.envelopeJson)
+        } else {
+            displayed = null
+            inFlight.clear()
+            sendClear(status.text)
+        }
     }
 
     private fun sendEnvelope(rawJson: String) = execute(
