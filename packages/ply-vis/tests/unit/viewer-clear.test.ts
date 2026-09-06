@@ -6,7 +6,7 @@ const envelope = (id: string) => ({
   protocolVersion: 1 as const,
   run: { id, completedAt: '2026-09-01T00:00:00Z', root: { path: '.' }, tool: { name: 'ply', version: 'test' }, outcome: 'clean' as const },
   svg: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><g data-element-id="workspace"><rect width="100" height="50" fill="#fff"/></g></svg>',
-  elements: { workspace: { id: 'workspace', kind: 'workspace', label: 'Workspace', evidence: { verdict: 'earned', statuses: [], reused: false }, diagnosticIds: [] } },
+  elements: { workspace: { id: 'workspace', kind: 'workspace', label: 'Workspace', evidence: { verdict: 'earned', statuses: [], reused: false }, diagnosticIds: [], declaration: 'fn only_in_the_first_run()' } },
   diagnostics: [],
 });
 
@@ -73,6 +73,35 @@ describe('clearing the drawing', () => {
     expect(canvas.querySelector('svg')).toBeNull();
     expect(canvas.dataset.empty).toBe('true');
     expect(container.textContent).toContain('Showing nothing: different project.');
+    viewer.destroy();
+  });
+
+  // The canvas going empty is not the whole panel going empty. The details
+  // pane holds the declaration, verdict and evidence of whatever the reader
+  // last clicked, and clearing left every word of it on screen beside a
+  // caption saying there is nothing to show. Worse than stale: the toggle is
+  // hidden at the same moment, so the reader cannot even close the panel that
+  // is lying to them.
+  //
+  // Reported by external review, 2026-09-06.
+  it('does not leave the previous run evidence in an open details panel', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+
+    viewer.load(envelope('first'));
+    container.querySelector<SVGGElement>('[data-element-id="workspace"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const inspector = container.querySelector<HTMLElement>('.ply-inspector')!;
+    expect(inspector.hidden).toBe(false);
+    expect(inspector.textContent).toContain('fn only_in_the_first_run()');
+
+    window.dispatchEvent(new MessageEvent('message', { data: {
+      channel: 'ply-vis', version: 1, type: 'clear', message: 'Showing nothing: different project.',
+    } }));
+
+    expect(inspector.textContent).not.toContain('fn only_in_the_first_run()');
+    expect(inspector.hidden).toBe(true);
     viewer.destroy();
   });
 

@@ -102,7 +102,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                 """.trimIndent()
                 browser.executeJavaScript(js, browser.url, 0)
                 state?.let { sendState(it.toString()) }
-                loaded?.let { sendEnvelope(it.envelopeJson) }
+                resend()
             }
         }, jcef.cefBrowser)
     }
@@ -134,20 +134,27 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
 
     private fun loadSelectedRoot() {
         val root = roots.selectedItem as? Path ?: run {
-            status.text = PlyFirstUseState.message(hasSpecs = false)
+            loaded = null
+            show(PlyPanelDisplays.noRoot())
             return
         }
         val state = artifacts.reload(root)
         loaded = state.snapshot
         indexTimes[indexPath(root)] = modified(indexPath(root))
-        state.snapshot?.let { sendEnvelope(it.envelopeJson) }
-        status.text = when {
-            state.snapshot != null && state.error != null -> "Keeping run ${state.snapshot.entry.id}: ${state.error}"
-            state.snapshot != null -> "Showing run ${state.snapshot.entry.id}"
-            else -> state.error ?: PlyFirstUseState.message(hasSpecs = true)
-        }
-        if (state.error != null) {
-            sendHostError(status.text)
+        show(PlyPanelDisplays.forRoot(state))
+    }
+
+    /**
+     * Every path through loading ends here, and every one of them tells the
+     * drawing what it told the status line. Clearing used to be the case
+     * nobody wrote: the line said "no completed runs" and the last project's
+     * picture stayed up behind it.
+     */
+    private fun show(display: PlyPanelDisplay) {
+        status.text = display.status
+        when (display) {
+            is PlyPanelDisplay.Draw -> sendEnvelope(display.envelopeJson)
+            is PlyPanelDisplay.Clear -> sendClear(display.status)
         }
     }
 
@@ -173,9 +180,9 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                 is PlyHostMessage.PersistState -> viewState.write(message.state)
                 PlyHostMessage.Ready -> {
                     viewState.read()?.let { sendState(it.toString()) }
-                    loaded?.let { sendEnvelope(it.envelopeJson) }
+                    resend()
                 }
-                PlyHostMessage.RequestArtifact -> loaded?.let { sendEnvelope(it.envelopeJson) }
+                PlyHostMessage.RequestArtifact -> resend()
                 is PlyHostMessage.ViewerError -> status.text = message.message
             }
         } catch (error: Exception) {
@@ -184,8 +191,23 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         }
     }
 
+    /**
+     * Answers a viewer that has just come up, or asked again, with whatever is
+     * currently true -- including that there is nothing, which is an answer.
+     * Staying silent left a reloaded viewer showing whatever it had drawn
+     * before, with no way to find out that it was stale.
+     */
+    private fun resend() {
+        val run = loaded
+        if (run != null) sendEnvelope(run.envelopeJson) else sendClear(status.text)
+    }
+
     private fun sendEnvelope(rawJson: String) = execute(
         "window.dispatchEvent(new MessageEvent('message',{data:{channel:'ply-vis',version:1,type:'artifact',envelope:$rawJson}}));"
+    )
+
+    private fun sendClear(message: String) = execute(
+        "window.dispatchEvent(new MessageEvent('message',{data:{channel:'ply-vis',version:1,type:'clear',message:${gson.toJson(message)}}}));"
     )
 
     private fun sendState(rawJson: String) = execute(
