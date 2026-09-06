@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { ResultSource, type LoadState, type WorkspaceRoot } from './core/result-source';
 import { loadRenderedSpec } from './core/rendered-spec';
 import { isPlyCode, plyCode } from './core/ply-code';
+import { isBuildIdentity } from './core/run-provenance';
 import { parseViewerRequest } from './host/bridge';
 import { StateStore } from './host/state-store';
 import { PlyPanel } from './vscode/panel';
@@ -59,8 +60,26 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     },
   };
-  const panel = new PlyPanel(context.extensionUri, state, navigator, undefined, explainer);
+  let installedTool: string | undefined;
+  const panel = new PlyPanel(context.extensionUri, state, navigator, undefined, explainer, () => installedTool);
   const runsView = new RunsView(results);
+  // Ask the installed Ply what build it is, once. The viewer compares that
+  // against the build each run recorded, so a reader can tell whether a run
+  // still describes what today's Ply would find. Asked here rather than
+  // derived: `cargo ply --version` is the only thing that knows, and if it
+  // cannot be reached the answer stays undefined and nothing is claimed.
+  const askInstalledTool = async (): Promise<string | undefined> => {
+    try {
+      const { stdout } = await run('cargo', ['ply', '--version'], { maxBuffer: 64 * 1024 });
+      const found = /build identity ([0-9a-f]{64})/.exec(stdout)?.[1];
+      return isBuildIdentity(found) ? found : undefined;
+    } catch {
+      // No Ply on the extension's PATH -- which is not always the
+      // terminal's. Silence is correct; a wrong comparison is worse.
+      return undefined;
+    }
+  };
+  void askInstalledTool().then((identity) => { installedTool = identity; runsView.setInstalledTool(identity); });
   let workspace: WorkspaceController;
   workspace = new WorkspaceController(files, results, state, (root, load) => {
     runsView.update(workspace.discoveredRoots());
@@ -131,7 +150,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(vscode.commands.registerCommand('ply.openVisualInNewTab', async (target?: unknown) => {
     const selected = await visual(target);
     if (!selected) return;
-    const tab = new PlyPanel(context.extensionUri, state, navigator, `Ply Visual — ${selected.root.name}`, explainer);
+    const tab = new PlyPanel(context.extensionUri, state, navigator, `Ply Visual — ${selected.root.name}`, explainer, () => installedTool);
     context.subscriptions.push(tab);
     tab.show(selected.root, selected.loaded);
   }));

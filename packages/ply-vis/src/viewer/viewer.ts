@@ -116,6 +116,10 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
    * host says otherwise: the viewer is shared, and a host that cannot run
    * Ply must not be offered an action it will fail. */
   let canExplain = false;
+  /** The build identity of the Ply installed where the host runs, if the
+   * host said. Undefined stays silent: comparing a run against the wrong
+   * binary is worse than saying nothing about it. */
+  let installedTool: string | undefined;
 
   const postState = () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'persist-state', state });
   const setState = (patch: Partial<ViewState>, persist = true) => { state = updateViewState(state, patch); if (persist) postState(); };
@@ -185,7 +189,23 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const promisesOnly = envelope.run.tool.version === 'render'
       || Object.values(envelope.elements).every((element) => classifyElement(element) === 'declared');
     if (promisesOnly) return { text: 'Promises only — no run has checked this yet, so nothing here can ever be green.' };
-    return { text: `Showing a run completed ${new Date(envelope.run.completedAt).toLocaleString()}.`, title: `Run ${envelope.run.id}` };
+    const text = `Showing a run completed ${new Date(envelope.run.completedAt).toLocaleString()}.`;
+    // Ply moves its build identity whenever its behaviour could have
+    // changed, and refuses to carry a stored result across that move. So a
+    // run made by another build describes what a *different* Ply found, and
+    // the reader is told which fact that is -- not "stale", which the spec
+    // has no state for, and never "older": the identities are opaque and
+    // cannot be ordered.
+    const identity = envelope.run.tool.version;
+    const differentBuild = installedTool !== undefined
+      && /^[0-9a-f]{64}$/.test(identity)
+      && /^[0-9a-f]{64}$/.test(installedTool)
+      && identity !== installedTool;
+    if (!differentBuild) return { text, title: `Run ${envelope.run.id}` };
+    return {
+      text: `${text} Ply itself has changed since this run, so nothing here would be carried forward — every check would run again.`,
+      title: `Run ${envelope.run.id}\nRan by ${identity}\nInstalled ${installedTool}`,
+    };
   }
 
   function isDescendant(element: VisualElement, ancestorId: string, elements: VisualEnvelope['elements']): boolean {
@@ -1035,7 +1055,10 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const receive = (event: MessageEvent) => {
     if (!isHostResponse(event.data)) return;
     if (event.data.type === 'artifact') load(event.data.envelope);
-    else if (event.data.type === 'capabilities') canExplain = event.data.explain;
+    else if (event.data.type === 'capabilities') {
+      canExplain = event.data.explain;
+      installedTool = event.data.installedTool;
+    }
     else if (event.data.type === 'clear') clearDrawing(event.data.message);
     else {
       state = updateViewState(state, event.data.state);

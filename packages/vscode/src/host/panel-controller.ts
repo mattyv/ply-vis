@@ -30,7 +30,8 @@ export class PanelController implements Disposable {
   private readonly subscription: Disposable;
   public constructor(private readonly surface: PanelSurface, private readonly state: StateStore,
     private readonly navigator: SourceNavigator, private readonly reporter: HostReporter,
-    private readonly explainer?: CodeExplainer) {
+    private readonly explainer?: CodeExplainer,
+    private readonly installedTool?: () => string | undefined) {
     this.subscription = surface.onMessage((message) => this.receive(message));
   }
   public update(root: WorkspaceRoot, state: LoadState): void {
@@ -88,7 +89,7 @@ export class PanelController implements Disposable {
       return;
     }
     if (message.type === 'ready') {
-      await this.surface.postMessage(capabilitiesMessage(this.explainer !== undefined));
+      await this.surface.postMessage(capabilitiesMessage(this.explainer !== undefined, this.installedTool?.()));
       await this.surface.postMessage(restoreStateMessage(this.state.viewState()));
     }
     if (this.loadState.snapshot) await this.surface.postMessage(artifactMessage(this.loadState.snapshot.envelope));

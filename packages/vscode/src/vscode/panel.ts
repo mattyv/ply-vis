@@ -22,6 +22,7 @@ export class PlyPanel implements vscode.Disposable {
     private readonly navigator: SourceNavigator,
     private readonly title = 'Ply Visual',
     private readonly explainer?: CodeExplainer,
+    private readonly installedTool?: () => string | undefined,
   ) {}
 
   public show(root: WorkspaceRoot, loadState: LoadState): void {
@@ -43,7 +44,7 @@ export class PlyPanel implements vscode.Disposable {
     panel.webview.html = webviewHtml({ scriptUri, styleUri, cspSource: panel.webview.cspSource, nonce: createNonce(randomBytes(16)) });
     this.panel = panel;
     this.controller = new PanelController(new VsCodeSurface(panel.webview), this.state, this.navigator,
-      { error: (message) => { void vscode.window.showErrorMessage(message); } }, this.explainer);
+      { error: (message) => { void vscode.window.showErrorMessage(message); } }, this.explainer, this.installedTool);
     panel.onDidDispose(() => { this.controller?.dispose(); this.controller = undefined; this.panel = undefined; });
   }
 }

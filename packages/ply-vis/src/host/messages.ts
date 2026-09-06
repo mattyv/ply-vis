@@ -13,7 +13,7 @@ export type HostRequest =
 export type HostResponse =
   | { channel: 'ply-vis'; version: 1; type: 'artifact'; envelope: VisualEnvelope }
   | { channel: 'ply-vis'; version: 1; type: 'restore-state'; state: ViewState }
-  | { channel: 'ply-vis'; version: 1; type: 'capabilities'; explain: boolean }
+  | { channel: 'ply-vis'; version: 1; type: 'capabilities'; explain: boolean; installedTool?: string | undefined }
   // The host has nothing to draw and wants to say why: no workspace root
   // picked, a run that would not load, a project switched away from.
   //

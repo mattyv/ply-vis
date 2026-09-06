@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { randomUUID } from 'node:crypto';
 import { buildSpecTree, type SpecTreeNode } from '../core/spec-tree';
 import { ResultSource, type ArtifactSnapshot, type WorkspaceRoot } from '../core/result-source';
+import { describeRun, runListNote } from '../core/run-provenance';
 
 type RunNode = { readonly kind: 'run'; readonly root: WorkspaceRoot; readonly snapshot: ArtifactSnapshot };
 type ErrorNode = { readonly kind: 'error'; readonly message: string };
@@ -13,7 +14,17 @@ export class RunsView implements vscode.TreeDataProvider<RunsTreeNode> {
   public readonly onDidChangeTreeData = this.changed.event;
   private roots: readonly WorkspaceRoot[] = [];
 
+  /// The build identity of the installed Ply, once the extension has asked
+  /// it. Undefined until then, and undefined stays silent rather than
+  /// guessing -- see `run-provenance`.
+  private installedTool: string | undefined;
+
   public constructor(private readonly results: ResultSource) {}
+
+  public setInstalledTool(identity: string | undefined): void {
+    this.installedTool = identity;
+    this.changed.fire(undefined);
+  }
 
   public update(roots: readonly WorkspaceRoot[]): void {
     this.roots = roots;
@@ -41,9 +52,18 @@ export class RunsView implements vscode.TreeDataProvider<RunsTreeNode> {
       return item;
     }
     if (node.kind === 'run') {
-      const item = new vscode.TreeItem(node.snapshot.envelope.run.id, vscode.TreeItemCollapsibleState.None);
-      item.description = node.snapshot.entry.outcome;
-      item.tooltip = `Completed ${node.snapshot.entry.completedAt}`;
+      // Labelled by when it ran, not by `1788168166-166428000-17374`, which
+      // means nothing to anyone and cannot be compared by eye.
+      const facts = describeRun(node.snapshot.envelope.run, this.installedTool);
+      const note = runListNote(facts);
+      const item = new vscode.TreeItem(
+        new Date(node.snapshot.entry.completedAt).toLocaleString(),
+        vscode.TreeItemCollapsibleState.None,
+      );
+      item.description = note
+        ? `${node.snapshot.entry.outcome} · ${note}`
+        : node.snapshot.entry.outcome;
+      item.tooltip = [...facts.lines, `Run ${node.snapshot.envelope.run.id}`].join('\n');
       item.contextValue = 'ply.visualRun';
       item.iconPath = new vscode.ThemeIcon('preview');
       item.command = { command: 'ply.openVisual', title: 'Open Visual', arguments: [node.root] };
