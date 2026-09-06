@@ -24,6 +24,12 @@ const envelope = (diagnosticIds: readonly string[]) => ({
   ],
 });
 
+// The host announces what it can do; these tests are about a host that can
+// explain. A host that cannot is covered by viewer-explain-capability.test.ts.
+const announceExplain = () => window.dispatchEvent(new MessageEvent('message', {
+  data: { channel: 'ply-vis', version: 1, type: 'capabilities', explain: true },
+}));
+
 const openMenuOn = (container: HTMLElement) => {
   container.querySelector<SVGElement>('[data-element-id="a"]')!
     .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
@@ -36,6 +42,7 @@ describe('explaining a finding from the right-click menu', () => {
     document.body.append(container);
     const viewer = mountViewer(container, { post: () => undefined });
     viewer.load(envelope(['d1', 'd2']));
+    announceExplain();
 
     const labels = openMenuOn(container).map((button) => button.textContent);
     expect(labels).toContain('Explain W0532');
@@ -51,6 +58,7 @@ describe('explaining a finding from the right-click menu', () => {
     document.body.append(container);
     const viewer = mountViewer(container, { post: (message) => { posted.push(message); } });
     viewer.load(envelope(['d1', 'd2']));
+    announceExplain();
 
     openMenuOn(container).find((button) => button.textContent === 'Explain P0502')!.click();
 
@@ -67,6 +75,7 @@ describe('explaining a finding from the right-click menu', () => {
     document.body.append(container);
     const viewer = mountViewer(container, { post: () => undefined });
     viewer.load(envelope([]));
+    announceExplain();
 
     const labels = openMenuOn(container).map((button) => button.textContent);
     expect(labels.filter((label) => /^Explain [A-Z][0-9]{4}$/.test(label ?? ''))).toEqual([]);
@@ -97,6 +106,7 @@ describe('the menu always offers a way in', () => {
     document.body.append(container);
     const viewer = mountViewer(container, { post: () => undefined });
     viewer.load(bare);
+    announceExplain();
 
     const labels = openMenuOn2(container, 'edge-1');
     expect(labels).toContain('Explain a code…');
@@ -109,6 +119,7 @@ describe('the menu always offers a way in', () => {
     document.body.append(container);
     const viewer = mountViewer(container, { post: (message) => { posted.push(message); } });
     viewer.load(bare);
+    announceExplain();
 
     const buttons = [...container.querySelectorAll<HTMLButtonElement>('.ply-context-menu button')];
     container.querySelector<SVGElement>('[data-ply-id="edge-1"]')!

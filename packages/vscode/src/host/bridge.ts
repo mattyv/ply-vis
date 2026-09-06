@@ -14,7 +14,8 @@ export type ViewerRequest =
 export type HostResponse =
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'artifact'; readonly envelope: VisualEnvelope }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'restore-state'; readonly state: PersistedViewState }
-  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'error'; readonly message: string };
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'error'; readonly message: string }
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'capabilities'; readonly explain: boolean };
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const exact = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
@@ -60,3 +61,7 @@ export function parseViewerRequest(value: unknown): ViewerRequest | undefined {
 export const artifactMessage = (envelope: VisualEnvelope): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'artifact', envelope });
 export const restoreStateMessage = (state: PersistedViewState): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'restore-state', state });
 export const errorMessage = (message: string): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'error', message });
+/** What this host can do beyond drawing. The viewer hides an action rather
+ * than offering one the host will fail -- JetBrains reads the same messages
+ * and cannot run the CLI at all, so it simply never sends this. */
+export const capabilitiesMessage = (explain: boolean): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'capabilities', explain });

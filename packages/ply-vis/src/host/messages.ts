@@ -12,7 +12,8 @@ export type HostRequest =
   | { channel: 'ply-vis'; version: 1; type: 'explain-prompt' };
 export type HostResponse =
   | { channel: 'ply-vis'; version: 1; type: 'artifact'; envelope: VisualEnvelope }
-  | { channel: 'ply-vis'; version: 1; type: 'restore-state'; state: ViewState };
+  | { channel: 'ply-vis'; version: 1; type: 'restore-state'; state: ViewState }
+  | { channel: 'ply-vis'; version: 1; type: 'capabilities'; explain: boolean };
 
 export interface HostBridge { post(message: HostRequest): void }
 export const windowHostBridge = (): HostBridge => ({ post: (message) => window.parent.postMessage(message, '*') });
@@ -25,5 +26,5 @@ function isViewState(value: unknown): value is ViewState {
 export function isHostResponse(value: unknown): value is HostResponse {
   if (typeof value !== 'object' || value === null) return false;
   const message = value as Record<string, unknown>;
-  return message.channel === 'ply-vis' && message.version === 1 && (message.type === 'artifact' && 'envelope' in message || message.type === 'restore-state' && isViewState(message.state));
+  return message.channel === 'ply-vis' && message.version === 1 && (message.type === 'artifact' && 'envelope' in message || message.type === 'restore-state' && isViewState(message.state) || message.type === 'capabilities' && typeof message.explain === 'boolean');
 }

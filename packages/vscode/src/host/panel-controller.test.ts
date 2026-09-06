@@ -36,7 +36,14 @@ describe('panel lifecycle', () => {
     controller.update({ name: 'r', path: '/r' }, load);
     surface.messages = [];
     await surface.listener?.({ channel: 'ply-vis', version: 1, type: 'ready' });
-    expect(surface.messages).toMatchObject([{ type: 'restore-state', state: { selectedId: 'fn' } }, { type: 'artifact' }]);
+    // Capabilities go first, before any state: the viewer decides which
+    // actions to offer as it comes up, so learning what the host can do
+    // after the drawing is already interactive would be too late.
+    expect(surface.messages).toMatchObject([
+      { type: 'capabilities', explain: false },
+      { type: 'restore-state', state: { selectedId: 'fn' } },
+      { type: 'artifact' },
+    ]);
     controller.dispose(); expect(surface.disposed).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 import type { Disposable } from './surface';
 import type { LoadState, WorkspaceRoot } from '../core/result-source';
 import { firstUseMessage } from '../core/first-use';
-import { artifactMessage, errorMessage, parseViewerRequest, restoreStateMessage } from './bridge';
+import { artifactMessage, capabilitiesMessage, errorMessage, parseViewerRequest, restoreStateMessage } from './bridge';
 import type { StateStore } from './state-store';
 import type { SourceNavigator } from '../vscode/source-navigation';
 
@@ -21,6 +21,12 @@ export interface CodeExplainer {
 export class PanelController implements Disposable {
   private loadState: LoadState = {};
   private root: WorkspaceRoot | undefined;
+  /** The root of the drawing actually on screen, which is not always the
+   * selected one: selecting a project with no completed run leaves the
+   * previous project's drawing up. Navigation follows what the reader can
+   * see, or a source link in one project's drawing opened the same relative
+   * path inside another (external review, 2026-09-06). */
+  private displayedRoot: WorkspaceRoot | undefined;
   private readonly subscription: Disposable;
   public constructor(private readonly surface: PanelSurface, private readonly state: StateStore,
     private readonly navigator: SourceNavigator, private readonly reporter: HostReporter,
@@ -30,7 +36,18 @@ export class PanelController implements Disposable {
   public update(root: WorkspaceRoot, state: LoadState): void {
     this.root = root;
     this.loadState = state;
-    if (state.snapshot) void this.surface.postMessage(artifactMessage(state.snapshot.envelope));
+    if (state.snapshot) {
+      this.displayedRoot = root;
+      void this.surface.postMessage(artifactMessage(state.snapshot.envelope));
+    } else if (this.displayedRoot && this.displayedRoot.path !== root.path) {
+      // Nothing to replace the drawing with, and it belongs to a different
+      // project than the one now selected. Say so rather than leaving it up
+      // as though it described the new one.
+      void this.surface.postMessage(errorMessage(
+        `No completed Ply run for ${root.name} yet. Showing nothing rather than ${this.displayedRoot.name}'s last run, which describes a different project.`,
+      ));
+      this.displayedRoot = undefined;
+    }
     if (state.error) void this.surface.postMessage(errorMessage(`${state.error}${state.snapshot ? ' Showing the last complete run.' : ''}`));
   }
   public dispose(): void { this.subscription.dispose(); }
@@ -50,11 +67,18 @@ export class PanelController implements Disposable {
       return;
     }
     if (message.type === 'navigate') {
-      if (!this.root) { this.reporter.error('Select a Ply workspace root before opening source.'); return; }
-      await this.navigator.open(this.root, message.source);
+      // The displayed root, never the selected one: they differ exactly when
+      // a project with no run was selected, and opening the selected one's
+      // path would land the reader in a file they were not looking at.
+      const root = this.displayedRoot;
+      if (!root) { this.reporter.error('Select a Ply workspace root with a completed run before opening source.'); return; }
+      await this.navigator.open(root, message.source);
       return;
     }
-    if (message.type === 'ready') await this.surface.postMessage(restoreStateMessage(this.state.viewState()));
+    if (message.type === 'ready') {
+      await this.surface.postMessage(capabilitiesMessage(this.explainer !== undefined));
+      await this.surface.postMessage(restoreStateMessage(this.state.viewState()));
+    }
     if (this.loadState.snapshot) await this.surface.postMessage(artifactMessage(this.loadState.snapshot.envelope));
     else await this.surface.postMessage(errorMessage(this.loadState.error ?? firstUseMessage(true)));
   }
