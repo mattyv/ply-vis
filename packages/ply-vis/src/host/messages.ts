@@ -7,7 +7,9 @@ export type HostRequest =
   | { channel: 'ply-vis'; version: 1; type: 'error'; message: string }
   | { channel: 'ply-vis'; version: 1; type: 'navigate'; source: SourceLocation }
   | { channel: 'ply-vis'; version: 1; type: 'persist-state'; state: ViewState }
-  | { channel: 'ply-vis'; version: 1; type: 'request-artifact' };
+  | { channel: 'ply-vis'; version: 1; type: 'request-artifact' }
+  | { channel: 'ply-vis'; version: 1; type: 'explain'; code: string }
+  | { channel: 'ply-vis'; version: 1; type: 'explain-prompt' };
 export type HostResponse =
   | { channel: 'ply-vis'; version: 1; type: 'artifact'; envelope: VisualEnvelope }
   | { channel: 'ply-vis'; version: 1; type: 'restore-state'; state: ViewState };

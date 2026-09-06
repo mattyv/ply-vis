@@ -2,6 +2,8 @@
 * { box-sizing: border-box; }
 .ply-vis { --bg: var(--vscode-editor-background, #f7f8fa); --panel: var(--vscode-editorWidget-background, #fff); --ink: var(--vscode-editor-foreground, #18202b); --line: var(--vscode-panel-border, #c9d0d9); --grid: var(--vscode-editorIndentGuide-background, #dfe3e8); display: flex; flex-direction: column; overflow: hidden; block-size: 100vh; min-height: 0; color: var(--ink); background: var(--bg); }
 .ply-toolbar { display: flex; flex: none; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; padding: .65rem; border-bottom: 1px solid var(--line); background: var(--panel); }
+.ply-options { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; }
+.ply-options-toggle { padding: .3rem .5rem; line-height: 1; }
 .ply-toolbar fieldset { display: flex; gap: .75rem; border: 0; padding: 0; margin: 0; }
 .ply-toolbar legend { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; }
 button, select, input { font: inherit; }

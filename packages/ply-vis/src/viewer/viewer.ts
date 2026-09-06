@@ -45,6 +45,8 @@ const html = `
       <div class="ply-tools" role="group" aria-label="Canvas controls">
         ${iconButton('Zoom out', '−')}${iconButton('Zoom in', '+')}${iconButton('Fit canvas', 'Fit')}
       </div>
+      <button type="button" class="ply-options-toggle" aria-controls="ply-vis-options" aria-expanded="true" aria-label="Hide options" title="Hide options">⋯</button>
+      <div class="ply-options" id="ply-vis-options">
       <fieldset><legend>Detail</legend>
         <label><input type="checkbox" data-fold-detail checked> Fold detail when zoomed out</label>
         <label><input type="checkbox" data-hover-tooltips checked> Show tooltips on hover</label>
@@ -54,6 +56,7 @@ const html = `
         <label><input type="checkbox" data-overlay="gap" checked> Gap</label>
         <label><input type="checkbox" data-overlay="violation" checked> Violation</label>
       </fieldset>
+      </div>
     </header>
     <div class="ply-identity">
       <nav class="ply-breadcrumbs" aria-label="Semantic focus"></nav>
@@ -63,7 +66,7 @@ const html = `
       <main class="ply-canvas" tabindex="0" aria-label="Architecture canvas. Use arrow keys to move between items and Enter to inspect." data-empty="true">
         <div class="ply-stage"></div>
         <div class="ply-tooltip" id="ply-vis-tooltip" role="tooltip" hidden></div>
-        <ul class="ply-context-menu" id="ply-vis-context-menu" role="menu" aria-label="Zoom options" hidden></ul>
+        <ul class="ply-context-menu" id="ply-vis-context-menu" role="menu" aria-label="Item options" hidden></ul>
         <p class="ply-empty">Waiting for a visual artifact…</p>
       </main>
       <button type="button" class="ply-inspector-toggle" aria-label="Show details" title="Show details" aria-controls="ply-inspector" aria-expanded="false">‹</button>
@@ -84,6 +87,8 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const workspace = root.querySelector<HTMLElement>('.ply-workspace')!;
   const status = root.querySelector<HTMLElement>('.ply-status')!;
   const overlays = root.querySelector<HTMLFieldSetElement>('.ply-toolbar fieldset')!;
+  const options = root.querySelector<HTMLElement>('.ply-options')!;
+  const optionsToggle = root.querySelector<HTMLButtonElement>('.ply-options-toggle')!;
   const breadcrumbs = root.querySelector<HTMLElement>('.ply-breadcrumbs')!;
   const provenance = root.querySelector<HTMLElement>('.ply-provenance')!;
   let state = initialViewState();
@@ -117,6 +122,19 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     inspectorToggle.title = label;
     inspectorToggle.setAttribute('aria-expanded', String(!state.detailsHidden));
     inspectorToggle.textContent = state.detailsHidden ? '‹' : '›';
+  }
+
+  function renderOptionsVisibility() {
+    options.hidden = state.optionsHidden;
+    const label = state.optionsHidden ? 'Show options' : 'Hide options';
+    optionsToggle.setAttribute('aria-label', label);
+    optionsToggle.title = label;
+    optionsToggle.setAttribute('aria-expanded', String(!state.optionsHidden));
+  }
+
+  function setOptionsHidden(optionsHidden: boolean, persist = true) {
+    setState({ optionsHidden }, persist);
+    renderOptionsVisibility();
   }
 
   function setDetailsHidden(detailsHidden: boolean, persist = true) {
@@ -220,7 +238,8 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     inspector.append(section('Earned evidence', evidenceDetails.length ? evidenceDetails : ['No additional evidence details supplied.']));
     inspector.append(section('Limitations', element.limitations?.length ? element.limitations : ['No limitations supplied.']));
     const diagnosticsById = new Map(active.diagnostics.map((item) => [item.id, item]));
-    const diagnostics = element.diagnosticIds.map((id) => diagnosticsById.get(id)).filter((item) => item !== undefined).map((item) => `${item.code} — ${item.severity}: ${item.message}`);
+    const reported = element.diagnosticIds.map((id) => diagnosticsById.get(id)).filter((item) => item !== undefined);
+    const diagnostics = reported.map((item) => `${item.code} — ${item.severity}: ${item.message}`);
     inspector.append(section('Diagnostics', diagnostics.length ? diagnostics : ['No diagnostics supplied.']));
     inspector.append(runDetails(active.run));
     if (element.source) { const button = document.createElement('button'); button.type = 'button'; button.className = 'ply-source'; button.textContent = `Open ${element.source.file}:${element.source.startLine + 1}:${element.source.startColumn + 1}`; button.addEventListener('click', () => bridge.post({ channel: 'ply-vis', version: 1, type: 'navigate', source: element.source! })); inspector.append(button); }
@@ -468,6 +487,23 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const entries: Array<{ label: string; run: () => void }> = [];
     if (element) entries.push({ label: `Zoom into ${element.label}`, run: () => focus(element.id) });
     if (state.focusedId) entries.push({ label: 'Back to Workspace', run: () => focus(undefined) });
+    // A code is unreadable on sight, and the inspector prints it with no way
+    // to ask what it means. The host has Ply's own explainer, so the menu
+    // only has to say which code was asked about.
+    if (active) {
+      const diagnosticsById = new Map(active.diagnostics.map((diagnostic) => [diagnostic.id, diagnostic]));
+      for (const id of element?.diagnosticIds ?? []) {
+        const code = diagnosticsById.get(id)?.code;
+        if (!code) continue;
+        entries.push({ label: `Explain ${code}`, run: () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'explain', code }) });
+      }
+    }
+    // Last, and on any item the reader actually clicked -- including a
+    // finding's own line, which carries no code in the envelope today, so
+    // without this the menu opened on nothing at all and read as broken.
+    // Empty canvas is deliberately left alone: no item, no menu of ours, so
+    // the host's own right-click menu still works there.
+    if (node) entries.push({ label: 'Explain a code…', run: () => bridge.post({ channel: 'ply-vis', version: HOST_PROTOCOL_VERSION, type: 'explain-prompt' }) });
     if (!entries.length) return;
 
     event.preventDefault();
@@ -948,6 +984,9 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => { input.checked = state.overlays[input.dataset.overlay as keyof ViewState['overlays']]; });
       root.querySelector<HTMLInputElement>('[data-fold-detail]')!.checked = state.foldDetail;
       root.querySelector<HTMLInputElement>('[data-hover-tooltips]')!.checked = state.hoverTooltips;
+      // Outside the `active` guard: the toolbar exists before any artifact
+      // arrives, so a restored fold has to show on it either way.
+      renderOptionsVisibility();
       if (active) { renderDetailsVisibility(); transform(); applyVisibility(); renderInspector(selectedItem()); }
     }
   };
@@ -970,7 +1009,9 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const darkMediaQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : undefined;
   const onDarkMediaChange = () => retheme(detectPrefersDark());
   darkMediaQuery?.addEventListener('change', onDarkMediaChange);
+  optionsToggle.addEventListener('click', () => setOptionsHidden(!state.optionsHidden));
   renderDetailsVisibility();
+  renderOptionsVisibility();
   for (const envelope of initialEnvelopes) load(envelope);
   bridge.post({ channel: 'ply-vis', version: 1, type: 'ready' });
   if (!initialEnvelopes.length) bridge.post({ channel: 'ply-vis', version: 1, type: 'request-artifact' });

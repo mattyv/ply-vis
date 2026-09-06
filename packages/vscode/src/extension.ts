@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { ResultSource, type LoadState, type WorkspaceRoot } from './core/result-source';
 import { loadRenderedSpec } from './core/rendered-spec';
+import { isPlyCode, plyCode } from './core/ply-code';
 import { parseViewerRequest } from './host/bridge';
 import { StateStore } from './host/state-store';
 import { PlyPanel } from './vscode/panel';
@@ -26,7 +27,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const results = new ResultSource(files);
   const state = new StateStore(context.workspaceState);
   const navigator = new SourceNavigator(new VsCodeEditor());
-  const panel = new PlyPanel(context.extensionUri, state, navigator);
+  // Ply's CLI already explains every code it can produce, in prose written
+  // for someone who has never seen Ply. Both the right-click menu and the
+  // command palette go through this one explainer rather than keeping a
+  // second copy of the glosses here, which would drift the moment a code's
+  // wording changed.
+  const explainOutput = vscode.window.createOutputChannel('Ply: Explain');
+  context.subscriptions.push(explainOutput);
+  const askForCode = async (): Promise<string | undefined> => {
+    const typed = await vscode.window.showInputBox({
+      title: 'Explain a Ply code',
+      prompt: 'A code as it appears in a finding, for example W0419 or P0502.',
+      validateInput: (value) => isPlyCode(value.trim()) ? undefined : 'A code is a letter followed by four digits, like W0419.',
+    });
+    return typed?.trim() || undefined;
+  };
+  const explainer = {
+    prompt: async (root: WorkspaceRoot): Promise<void> => {
+      const code = await askForCode();
+      if (code) await explainer.explain(root, code);
+    },
+    explain: async (root: WorkspaceRoot, code: string): Promise<void> => {
+      try {
+        const { stdout } = await run('cargo', ['ply', 'explain', code], { cwd: root.path, maxBuffer: 1024 * 1024 });
+        explainOutput.clear();
+        explainOutput.appendLine(stdout.trimEnd());
+        explainOutput.show(true);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`Ply could not explain ${code}: ${message}`);
+      }
+    },
+  };
+  const panel = new PlyPanel(context.extensionUri, state, navigator, undefined, explainer);
   const runsView = new RunsView(results);
   let workspace: WorkspaceController;
   workspace = new WorkspaceController(files, results, state, (root, load) => {
@@ -71,6 +104,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(vscode.commands.registerCommand('ply.runAndPublish', runAndPublish));
   context.subscriptions.push(vscode.commands.registerCommand('ply.renderSpec', renderSpec));
 
+  context.subscriptions.push(vscode.commands.registerCommand('ply.explainCode', async (menuContext?: unknown) => {
+    const code = plyCode(menuContext);
+    if (!code) { void vscode.window.showWarningMessage('That item does not carry a Ply code to explain.'); return; }
+    const root = workspace.currentRoot() ?? await workspace.chooseRoot();
+    if (root) await explainer.explain(root, code);
+  }));
+  context.subscriptions.push(vscode.commands.registerCommand('ply.explainAnyCode', async () => {
+    const root = workspace.currentRoot() ?? await workspace.chooseRoot();
+    if (root) await explainer.prompt(root);
+  }));
+
   const visual = async (target?: unknown): Promise<{ root: WorkspaceRoot; loaded: LoadState } | undefined> => {
     const root = requestedRoot(target) ?? workspace.currentRoot() ?? await workspace.chooseRoot();
     if (!root) return undefined;
@@ -87,7 +131,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(vscode.commands.registerCommand('ply.openVisualInNewTab', async (target?: unknown) => {
     const selected = await visual(target);
     if (!selected) return;
-    const tab = new PlyPanel(context.extensionUri, state, navigator, `Ply Visual — ${selected.root.name}`);
+    const tab = new PlyPanel(context.extensionUri, state, navigator, `Ply Visual — ${selected.root.name}`, explainer);
     context.subscriptions.push(tab);
     tab.show(selected.root, selected.loaded);
   }));
