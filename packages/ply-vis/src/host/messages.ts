@@ -15,9 +15,9 @@ export type HostRequest =
   // envelope the viewer refused, recorded it as displayed, and then opened
   // that project's files for source links in the drawing still on screen
   // from the previous one (external review, 2026-09-06).
-  | { channel: 'ply-vis'; version: 1; type: 'artifact-accepted'; runId: string };
+  | { channel: 'ply-vis'; version: 1; type: 'artifact-accepted'; deliveryId: string };
 export type HostResponse =
-  | { channel: 'ply-vis'; version: 1; type: 'artifact'; envelope: VisualEnvelope }
+  | { channel: 'ply-vis'; version: 1; type: 'artifact'; envelope: VisualEnvelope; deliveryId: string }
   | { channel: 'ply-vis'; version: 1; type: 'restore-state'; state: ViewState }
   | { channel: 'ply-vis'; version: 1; type: 'capabilities'; explain: boolean; installedTool?: string | undefined }
   // The host has nothing to draw and wants to say why: no workspace root
@@ -43,5 +43,5 @@ function isViewState(value: unknown): value is ViewState {
 export function isHostResponse(value: unknown): value is HostResponse {
   if (typeof value !== 'object' || value === null) return false;
   const message = value as Record<string, unknown>;
-  return message.channel === 'ply-vis' && message.version === 1 && (message.type === 'artifact' && 'envelope' in message || message.type === 'restore-state' && isViewState(message.state) || message.type === 'capabilities' && typeof message.explain === 'boolean' || message.type === 'clear' && typeof message.message === 'string');
+  return message.channel === 'ply-vis' && message.version === 1 && (message.type === 'artifact' && 'envelope' in message && typeof message.deliveryId === 'string' || message.type === 'restore-state' && isViewState(message.state) || message.type === 'capabilities' && typeof message.explain === 'boolean' || message.type === 'clear' && typeof message.message === 'string');
 }

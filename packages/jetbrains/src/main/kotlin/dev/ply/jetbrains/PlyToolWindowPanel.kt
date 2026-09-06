@@ -31,8 +31,13 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
     /** The run the viewer said it drew. Source links resolve against this. */
     private var displayed: LoadedPlyRun? = null
 
-    /** Artifacts sent and not yet acknowledged, oldest first. */
-    private val inFlight = ArrayDeque<LoadedPlyRun>()
+    /** Artifacts sent and not yet acknowledged, oldest first, each under the
+     *  delivery id it was sent with. The run's own id will not do: two
+     *  deliveries can carry the same run. */
+    private val inFlight = ArrayDeque<Pair<String, LoadedPlyRun>>()
+
+    /** Distinguishes one delivery from another. */
+    private var deliveries = 0
 
     /** How many unacknowledged artifacts to remember. Each acknowledgement
      *  clears everything older, so this is only reached by a run of refused
@@ -164,10 +169,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
     private fun show(display: PlyPanelDisplay) {
         status.text = display.status
         when (display) {
-            is PlyPanelDisplay.Draw -> {
-                loaded?.let { record(it) }
-                sendEnvelope(display.envelopeJson)
-            }
+            is PlyPanelDisplay.Draw -> sendEnvelope(display.envelopeJson, loaded?.let { record(it) })
             is PlyPanelDisplay.Clear -> {
                 displayed = null
                 inFlight.clear()
@@ -181,10 +183,12 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
      * viewer refuses is never acknowledged, so entries are bounded rather
      * than pruned on rejection -- a rejection carries no run id to prune by.
      */
-    private fun record(run: LoadedPlyRun) {
-        inFlight.removeAll { it.entry.id == run.entry.id }
-        inFlight.addLast(run)
+    private fun record(run: LoadedPlyRun): String {
+        deliveries += 1
+        val deliveryId = "d$deliveries"
+        inFlight.addLast(deliveryId to run)
         while (inFlight.size > IN_FLIGHT_LIMIT) inFlight.removeFirst()
+        return deliveryId
     }
 
     private fun pollIndex() {
@@ -220,9 +224,9 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
                 PlyHostMessage.RequestArtifact -> resend()
                 is PlyHostMessage.ViewerError -> status.text = message.message
                 is PlyHostMessage.ArtifactAccepted -> {
-                    val at = inFlight.indexOfFirst { it.entry.id == message.runId }
+                    val at = inFlight.indexOfFirst { it.first == message.deliveryId }
                     if (at >= 0) {
-                        displayed = inFlight[at]
+                        displayed = inFlight[at].second
                         // Anything sent before it was refused or superseded.
                         repeat(at + 1) { inFlight.removeFirst() }
                     }
@@ -251,8 +255,7 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         if (run != null) {
             // A resend awaits acknowledgement exactly as a first send does:
             // a viewer that has just come up has drawn nothing yet.
-            record(run)
-            sendEnvelope(run.envelopeJson)
+            sendEnvelope(run.envelopeJson, record(run))
         } else {
             displayed = null
             inFlight.clear()
@@ -260,8 +263,9 @@ class PlyToolWindowPanel(private val project: Project) : JPanel(BorderLayout()),
         }
     }
 
-    private fun sendEnvelope(rawJson: String) = execute(
-        "window.dispatchEvent(new MessageEvent('message',{data:{channel:'ply-vis',version:1,type:'artifact',envelope:$rawJson}}));"
+    private fun sendEnvelope(rawJson: String, deliveryId: String?) = execute(
+        "window.dispatchEvent(new MessageEvent('message',{data:{channel:'ply-vis',version:1," +
+            "type:'artifact',envelope:$rawJson,deliveryId:${gson.toJson(deliveryId ?: "")}}}));"
     )
 
     private fun sendClear(message: String) = execute(

@@ -791,20 +791,34 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     });
   }
 
-  function load(value: unknown): boolean {
+  function load(value: unknown, deliveryId?: string): boolean {
     try {
       const parsed = parseEnvelope(value);
+      // Sanitised first, and only then committed. Parsing and sanitising can
+      // each refuse an artifact, and they run at different moments: storing
+      // the unsanitised copy in between meant an artifact refused by the
+      // *sanitiser* still became the copy every later repaint was built
+      // from. Nothing showed until the reader flipped light/dark, at which
+      // point repainting rebuilt the refused envelope, failed, and reported
+      // failure over a drawing that had been on screen the whole time.
+      const sanitized = sanitizeEnvelope(parsed);
       rawEnvelope = parsed;
-      show(sanitizeEnvelope(parsed));
+      show(sanitized);
       delete root.dataset.error;
       // The host binds source navigation to whatever it last heard was
       // drawn. Saying so here is the only way it can know: an envelope the
       // host accepted and this rejected would otherwise leave it opening
       // one project's files against another project's drawing.
-      bridge.post({
-        channel: 'ply-vis', version: 1, type: 'artifact-accepted',
-        runId: parsed.run.id,
-      });
+      // Echoing the id of *this delivery*, not the run's own id. Two
+      // deliveries can carry the same run id -- copies of one run's
+      // artifacts, one of them damaged -- and the host matched on run id, so
+      // the acknowledgement for the good copy resolved to the refused one
+      // and source links opened the wrong project's files.
+      if (deliveryId !== undefined) {
+        bridge.post({
+          channel: 'ply-vis', version: 1, type: 'artifact-accepted', deliveryId,
+        });
+      }
       return true;
     } catch (error) {
       const message = error instanceof EnvelopeError || error instanceof Error ? error.message : 'Unknown artifact error';
@@ -1075,7 +1089,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
 
   const receive = (event: MessageEvent) => {
     if (!isHostResponse(event.data)) return;
-    if (event.data.type === 'artifact') load(event.data.envelope);
+    if (event.data.type === 'artifact') load(event.data.envelope, event.data.deliveryId);
     else if (event.data.type === 'capabilities') {
       canExplain = event.data.explain;
       installedTool = event.data.installedTool;

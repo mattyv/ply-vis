@@ -14,6 +14,12 @@ const read = (relative: string) => readFileSync(resolve(here, '../../../..', rel
  * because each is written against its own payload types.
  */
 function members(source: string, unionName: string): string[] {
+  return [...declaration(source, unionName).matchAll(/type:\s*'([^']+)'/g)].map((m) => m[1]!);
+}
+
+/** The text of one union declaration, from its name to its terminating
+ *  semicolon at brace depth zero. */
+function declaration(source: string, unionName: string): string {
   const start = source.indexOf(`export type ${unionName} =`);
   if (start < 0) throw new Error(`no declaration of ${unionName}`);
   // The terminating semicolon is the one at brace depth zero. Every member
@@ -30,7 +36,7 @@ function members(source: string, unionName: string): string[] {
     else if (c === ';' && depth === 0) { end = i; break; }
   }
   if (end < 0) throw new Error(`${unionName} has no terminating semicolon`);
-  return [...source.slice(start, end).matchAll(/type:\s*'([^']+)'/g)].map((m) => m[1]!);
+  return source.slice(start, end);
 }
 
 /**
@@ -64,6 +70,44 @@ function kotlinHandledTypes(source: string): string[] {
   return [...source.slice(start, end).matchAll(/^\s*"([a-z-]+)"\s*->/gm)].map((m) => m[1]!);
 }
 
+/**
+ * `type -> the other field names that member carries`, from a TypeScript
+ * union declaration.
+ */
+function tsRequiredKeys(source: string, unionName: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  // The *bounded* declaration, by the same brace-depth scan `members` uses.
+  // Splitting from the declaration to end-of-file instead walked straight
+  // into the next union and reported its members as this one's.
+  for (const member of declaration(source, unionName).split('|').slice(1)) {
+    const type = /type:\s*'([^']+)'/.exec(member)?.[1];
+    if (!type) continue;
+    const body = member.slice(0, member.indexOf('}') + 1);
+    out[type] = [...body.matchAll(/(?:readonly\s+)?([A-Za-z][A-Za-z0-9]*)\s*[?]?:/g)]
+      .map((m) => m[1]!)
+      .filter((key) => key !== 'channel' && key !== 'version' && key !== 'type')
+      .sort();
+  }
+  return out;
+}
+
+/** The same, from the Kotlin parser's `requireExact` calls. */
+function kotlinRequiredKeys(source: string): Record<string, string[]> {
+  const start = source.indexOf('fun parse(json: String)');
+  const body = source.slice(start, source.indexOf('private fun', start));
+  const out: Record<string, string[]> = {};
+  for (const block of body.split(/^\s*"/m).slice(1)) {
+    const type = /^([a-z-]+)"\s*->/.exec(block)?.[1];
+    if (!type) continue;
+    const call = /requireExact\(root([^)]*)\)/.exec(block)?.[1] ?? '';
+    out[type] = [...call.matchAll(/"([^"]+)"/g)]
+      .map((m) => m[1]!)
+      .filter((key) => key !== 'channel' && key !== 'version' && key !== 'type')
+      .sort();
+  }
+  return out;
+}
+
 describe('the three copies of the host protocol', () => {
   const viewer = read('packages/ply-vis/src/host/messages.ts');
   const host = read('packages/vscode/src/host/bridge.ts');
@@ -95,6 +139,17 @@ describe('the three copies of the host protocol', () => {
   it('agree with the JetBrains host on what the viewer may send', () => {
     expect(kotlinHandledTypes(jetbrains).sort())
       .toEqual([...members(viewer, 'HostRequest')].sort());
+  });
+
+  /**
+   * Names alone are not the protocol. Comparing only the `type:` strings let
+   * `artifact-accepted` change what it *carries* -- from the run's id to a
+   * per-delivery id -- while all three copies still listed the same types,
+   * and the JetBrains parser would have kept requiring a field nobody sent.
+   * The keys each side demands are compared too.
+   */
+  it('agree on the fields of every message the viewer may send', () => {
+    expect(kotlinRequiredKeys(jetbrains)).toEqual(tsRequiredKeys(viewer, 'HostRequest'));
   });
 
   // The guard is only worth having if it reads real members. A declaration

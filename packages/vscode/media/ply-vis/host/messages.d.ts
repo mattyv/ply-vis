@@ -33,12 +33,18 @@ export type HostRequest = {
     channel: 'ply-vis';
     version: 1;
     type: 'explain-prompt';
+} | {
+    channel: 'ply-vis';
+    version: 1;
+    type: 'artifact-accepted';
+    deliveryId: string;
 };
 export type HostResponse = {
     channel: 'ply-vis';
     version: 1;
     type: 'artifact';
     envelope: VisualEnvelope;
+    deliveryId: string;
 } | {
     channel: 'ply-vis';
     version: 1;

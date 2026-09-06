@@ -54,6 +54,9 @@ const danglingEdge = (id: string): LoadState => {
   return state as unknown as LoadState;
 };
 
+/** A project with no completed run: nothing to draw. */
+const empty = (): LoadState => ({} as unknown as LoadState);
+
 describe('navigation follows what the viewer accepted', () => {
   // Load project A. Then select project B, whose artifact the host accepts
   // and the viewer rejects. The reader is still looking at A's drawing --
@@ -156,6 +159,102 @@ describe('navigation follows what the viewer accepted', () => {
       'the viewer accepted A and refused B, so A is what the reader sees and A is where a \
 source link must land -- opening C is a file from a project two switches ago',
     );
+    controller.dispose();
+    viewer.destroy();
+  });
+
+  /**
+   * A run id names a *run*, not a delivery, and two deliveries can carry the
+   * same one: copies of one project's artifacts placed in two workspaces,
+   * with one copy damaged. The host matched acknowledgements on the run id,
+   * found the first entry carrying it -- the refused delivery -- and bound
+   * navigation to that project. The reader is looking at B and a source
+   * link opens A.
+   *
+   * Reported and reproduced by external review, 2026-09-06. Fixed by giving
+   * each delivery its own id, which the viewer echoes back.
+   */
+  it('tells two deliveries of the same run apart', async () => {
+    const opened: WorkspaceRoot[] = [];
+    const surface = new WiredSurface(window);
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: (message) => { void surface.listener?.(message); } });
+    const controller = new PanelController(
+      surface,
+      new StateStore(new MemoryState()),
+      { open: async (root: WorkspaceRoot) => { opened.push(root); } } as never,
+      { error: () => undefined },
+    );
+
+    const a: WorkspaceRoot = { name: 'a', path: '/a' };
+    const b: WorkspaceRoot = { name: 'b', path: '/b' };
+    // The same run id in both, one damaged: A's copy is refused, B's is drawn.
+    controller.update(a, danglingEdge('shared'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.update(b, good('shared'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    await surface.listener?.({
+      channel: 'ply-vis', version: 1, type: 'navigate',
+      source: { file: 'src/lib.rs', startLine: 0, startColumn: 0, endLine: 0, endColumn: 1 },
+    });
+
+    expect(opened.map((root) => root.path)).toEqual(['/b']);
+    controller.dispose();
+    viewer.destroy();
+  });
+
+  /**
+   * Selecting a project with no run is supposed to clear the drawing rather
+   * than leave another project's up. That decision was made from what the
+   * viewer had *acknowledged*, so during the gap before the first
+   * acknowledgement arrives it saw nothing displayed and stayed silent --
+   * and the artifact already in flight then arrived and drew itself, under
+   * the name of a project that has no run at all.
+   *
+   * The reader ends up looking at A's drawing with B selected and nothing
+   * saying so: the exact state the clear exists to prevent, reached by
+   * being early rather than by being wrong.
+   *
+   * Reported and reproduced by external review, 2026-09-06.
+   */
+  it('clears a drawing still in flight when an empty project is selected', async () => {
+    const held: unknown[] = [];
+    const surface = new (class extends WiredSurface {
+      public override async postMessage(message: unknown): Promise<boolean> { held.push(message); return true; }
+    })(window);
+    const releaseAll = () => {
+      while (held.length > 0) window.dispatchEvent(new MessageEvent('message', { data: held.shift() }));
+    };
+
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: (message) => { void surface.listener?.(message); } });
+    const controller = new PanelController(
+      surface,
+      new StateStore(new MemoryState()),
+      { open: async () => undefined } as never,
+      { error: () => undefined },
+    );
+
+    const a: WorkspaceRoot = { name: 'a', path: '/a' };
+    const b: WorkspaceRoot = { name: 'b', path: '/b' };
+
+    // A's artifact is sent but not yet delivered, so nothing is displayed
+    // and nothing is acknowledged when B is selected.
+    controller.update(a, good('a'));
+    controller.update(b, empty());
+    releaseAll();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const canvas = container.querySelector<HTMLElement>('.ply-canvas')!;
+    expect(
+      canvas.dataset.empty,
+      'B has no run, so B must not be represented by A\'s drawing -- and the reader must be '
+        + 'told that is why the canvas is empty',
+    ).toBe('true');
+    expect(container.textContent).toContain('No completed Ply run for b');
     controller.dispose();
     viewer.destroy();
   });
