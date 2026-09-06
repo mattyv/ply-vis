@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { mountViewer } from '../../src/viewer/viewer';
 
 const envelope = (id: string) => ({
@@ -8,6 +8,11 @@ const envelope = (id: string) => ({
   svg: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50"><g data-element-id="workspace"><rect width="100" height="50" fill="#fff"/></g></svg>',
   elements: { workspace: { id: 'workspace', kind: 'workspace', label: 'Workspace', evidence: { verdict: 'earned', statuses: [], reused: false }, diagnosticIds: [] } },
   diagnostics: [],
+});
+
+afterEach(() => {
+  document.body.className = '';
+  delete document.body.dataset.vscodeThemeKind;
 });
 
 describe('clearing the drawing', () => {
@@ -37,6 +42,37 @@ describe('clearing the drawing', () => {
     expect(canvas.querySelector('svg')).toBeNull();
     expect(canvas.dataset.empty).toBe('true');
     expect(container.textContent).toContain('Showing nothing: pick a Ply workspace root.');
+    viewer.destroy();
+  });
+
+  // Clearing the canvas is not clearing the drawing if the envelope that
+  // produced it is still held. A theme flip repaints from that retained
+  // copy, so the drawing a reader was told they were not being shown comes
+  // straight back -- onto a canvas still captioned with the reason it is
+  // empty. The reader is then looking at another project's run with an
+  // explanation underneath saying they are not.
+  //
+  // Reported and reproduced by external review, 2026-09-06, on the fix for
+  // the clearing bug above.
+  it('does not resurrect the cleared drawing when the host flips theme', async () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+
+    viewer.load(envelope('first'));
+    window.dispatchEvent(new MessageEvent('message', { data: {
+      channel: 'ply-vis', version: 1, type: 'clear', message: 'Showing nothing: different project.',
+    } }));
+    const canvas = container.querySelector<HTMLElement>('.ply-canvas')!;
+    expect(canvas.querySelector('svg')).toBeNull();
+
+    document.body.dataset.vscodeThemeKind = 'vscode-dark';
+    document.body.classList.add('vscode-dark');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(canvas.querySelector('svg')).toBeNull();
+    expect(canvas.dataset.empty).toBe('true');
+    expect(container.textContent).toContain('Showing nothing: different project.');
     viewer.destroy();
   });
 
