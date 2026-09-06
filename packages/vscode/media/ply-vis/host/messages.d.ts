@@ -49,6 +49,12 @@ export type HostResponse = {
     version: 1;
     type: 'capabilities';
     explain: boolean;
+    installedTool?: string | undefined;
+} | {
+    channel: 'ply-vis';
+    version: 1;
+    type: 'clear';
+    message: string;
 };
 export interface HostBridge {
     post(message: HostRequest): void;
