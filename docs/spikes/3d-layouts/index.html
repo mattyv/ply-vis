@@ -1,3 +1,6 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ply Spatial Layouts</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -203,7 +206,8 @@
     <button data-layout="cube" aria-pressed="false">Nested glass</button>
     <button data-layout="flat" aria-pressed="false">Flat</button>
   </div>
-  <div class="hint">drag to orbit · space-drag or middle-drag to move it · scroll to zoom · click a box to swing it to the front</div>
+  <label id="connectionsControl"><input type="checkbox" id="allConnections"> All connections</label>
+  <div class="hint">drag to orbit · space-drag to pan · scroll to zoom · click a box for connections · Esc to clear</div>
 </div>
 
 <div class="caption" id="caption">
@@ -480,7 +484,7 @@
     return c;
   }
 
-  function textSprite(text, color, P, size = 10, bg = null) {
+  function textSprite(text, color, P, size = 10, bg = null, depthTest = false) {
     const mono = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
     const c = document.createElement('canvas');
     const m = document.createElement('canvas').getContext('2d');
@@ -493,7 +497,7 @@
     ctx.fillText(text, 5, th / 2);
     const tex = new THREE.CanvasTexture(c);
     tex.minFilter = THREE.LinearFilter;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest }));
     sp.scale.set(tw * PX, th * PX, 1);
     sp.renderOrder = 10;
     return sp;
@@ -529,7 +533,7 @@
   let P = palette();
 
   function buildPanes() {
-    while (paneGroup.children.length) paneGroup.remove(paneGroup.children[0]);
+    clearGroup(paneGroup);
     for (const rec of nodes.values()) {
       const canvas = rec.isExternal ? drawExternal(rec.node, P) : drawPane(rec.node, P);
       const tex = new THREE.CanvasTexture(canvas);
@@ -556,7 +560,7 @@
   function layoutCone() {
     const out = new Map();
     const tops = MODEL.components;
-    const circ = tops.reduce((s, c) => s + nodes.get(c.id).w, 0) * 1.45;
+    const circ = tops.reduce((s, c) => s + nodes.get(c.id).w, 0) * 1.9;
     const R = circ / (2 * Math.PI);
     const decor = { kind: 'cone', R, rings: [] };
     tops.forEach((c, i) => {
@@ -569,7 +573,7 @@
         const kc = kids.reduce((s, k) => s + nodes.get(k.id).w, 0) * 1.9;
         const r = kids.length > 1 ? kc / (2 * Math.PI) : 0;
         const kh = Math.max(...kids.map(k => nodes.get(k.id).h));
-        const y = -(rec.h / 2 + 0.45 + kh / 2);
+        const y = -(rec.h / 2 + (kids.length === 1 ? 0.6 : 1.2) + kh / 2);
         kids.forEach((k, j) => {
           const a = th + (j / kids.length) * Math.PI * 2 + (kids.length > 1 ? Math.PI : 0);
           const kp = new THREE.Vector3(p.x + Math.sin(a) * r, y, p.z + Math.cos(a) * r);
@@ -742,7 +746,15 @@
   const LAYOUTS = { cone: layoutCone, sheets: layoutSheets, cube: layoutCube, flat: layoutFlat };
 
   // ---------- decor ----------
-  function clearGroup(g) { while (g.children.length) { const c = g.children[0]; g.remove(c); } }
+  function clearGroup(g) {
+    const materials = new Set();
+    g.traverse(c => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) materials.add(c.material);
+    });
+    for (const mat of materials) { if (mat.map) mat.map.dispose(); mat.dispose(); }
+    g.clear();
+  }
   function glassMat(color, opacity) {
     return new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false });
   }
@@ -755,9 +767,6 @@
       const topH = Math.max(...MODEL.components.map(c => nodes.get(c.id).h)) / 2 + 0.6;
       const botY = Math.min(...decor.rings.map(r => r.y - 1.6), -2.4);
       // the workspace frame, now a cylinder
-      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(decor.R * 0.985, decor.R * 0.985, topH - botY, 72, 1, true), glassMat(glass, P.dark ? 0.07 : 0.05));
-      cyl.position.y = (topH + botY) / 2;
-      decorGroup.add(cyl);
       // rim lines
       for (const y of [topH, botY]) {
         const pts = []; for (let i = 0; i <= 72; i++) { const a = i / 72 * Math.PI * 2; pts.push(new THREE.Vector3(Math.sin(a) * decor.R, y, Math.cos(a) * decor.R)); }
@@ -844,16 +853,27 @@
     const m = rec.mesh;
     const off = family === 'call' ? rec.h * 0.28 : family === 'deny' ? -rec.h * 0.28 : 0;
     const v = new THREE.Vector3(0, off, 0);
-    return m.localToWorld(v);
+    return root.worldToLocal(m.localToWorld(v));
   }
   function outwardNormal(id) {
     const m = nodes.get(id).mesh;
-    return new THREE.Vector3(0, 0, 1).applyQuaternion(m.getWorldQuaternion(new THREE.Quaternion()));
+    return new THREE.Vector3(0, 0, 1).applyQuaternion(m.quaternion);
   }
 
   let currentDecorKind = 'cone';
+  let selectedId = null;
+  const allConnections = document.getElementById('allConnections');
+  function showsConnections(from, to) {
+    return currentDecorKind !== 'cone' || allConnections.checked ||
+      (selectedId !== null && [from, to].some(id => id === selectedId || id.startsWith(selectedId + '.')));
+  }
+  allConnections.addEventListener('change', buildEdges);
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape') { selectedId = null; allConnections.checked = false; buildEdges(); }
+  });
   function buildEdges() {
     clearGroup(edgeGroup);
+    if (currentDecorKind === 'cone' && !selectedId && !allConnections.checked) return;
     const edgeColor = new THREE.Color(P.box);
     const denyColor = new THREE.Color(P.deny);
     const solid = new THREE.LineBasicMaterial({ color: edgeColor });
@@ -861,7 +881,6 @@
     const entryMat = new THREE.LineDashedMaterial({ color: edgeColor, dashSize: 0.06, gapSize: 0.06 });
     const denyMat = new THREE.LineDashedMaterial({ color: denyColor, dashSize: 0.14, gapSize: 0.09 });
     const origin = new THREE.Vector3();
-    root.getWorldPosition(origin);
 
     function curve(a, b, family) {
       const mid = a.clone().add(b).multiplyScalar(0.5);
@@ -884,6 +903,7 @@
     }
 
     for (const [from, to, family, label] of MODEL.edges) {
+      if (!showsConnections(from, to)) continue;
       const a0 = worldPos(from, family), b0 = worldPos(to, family);
       const [a, b] = shrink(a0, b0, 0.35, 0.42);
       const cv = curve(a, b, family);
@@ -893,13 +913,14 @@
       if (mat.isLineDashedMaterial) line.computeLineDistances();
       edgeGroup.add(line, arrow(cv, edgeColor));
       if (label) {
-        const sp = textSprite(label, P.sub, P, 9, P.ground);
+        const sp = textSprite(label, P.sub, P, 9, P.ground, true);
         sp.position.copy(cv.getPoint(0.5));
         edgeGroup.add(sp);
       }
     }
     // deny: a per-rule "any" marker, a barred red line into the target
     for (const rule of MODEL.deny) {
+      if (!showsConnections(rule.target, rule.target)) continue;
       const t = worldPos(rule.target, 'deny');
       const n = outwardNormal(rule.target);
       const side = new THREE.Vector3(0, 1, 0).cross(n).normalize();
@@ -919,7 +940,7 @@
       const perp = tan.clone().cross(n).normalize().multiplyScalar(0.16);
       if (perp.lengthSq() < 1e-6) perp.set(0, 0.16, 0);
       const bar = new THREE.Line(new THREE.BufferGeometry().setFromPoints([end.clone().add(perp), end.clone().sub(perp)]), new THREE.LineBasicMaterial({ color: denyColor, linewidth: 2 }));
-      const lab = textSprite('except ' + rule.except, P.denyText, P, 9, P.ground);
+      const lab = textSprite('except ' + rule.except, P.denyText, P, 9, P.ground, true);
       lab.position.copy(cv.getPoint(0.45)).add(new THREE.Vector3(0, -0.16, 0));
       edgeGroup.add(marker, ring, star, line, bar, lab);
     }
@@ -944,7 +965,7 @@
   // ---------- camera + orbit ----------
   const orbit = { az: 0.55, el: 0.28, dist: 15, target: new THREE.Vector3(0, -0.6, 0) };
   const VIEWS = {
-    cone: { az: 0.45, el: 0.18 },
+    cone: { az: 0.45, el: 0.48 },
     sheets: { az: 0.50, el: 0.22 },
     cube: { az: 0.42, el: 0.20 },
     flat: { az: 0, el: 0 }
@@ -1073,18 +1094,43 @@
     fitCam.fov = camera.fov; fitCam.aspect = camera.aspect; fitCam.near = camera.near; fitCam.far = camera.far;
     fitCam.updateProjectionMatrix();
     const corners = [];
-    for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
-      corners.push(new THREE.Vector3(center.x + sx * hx, center.y + sy * hy, center.z + sz * hz));
+    if (k === 'cone') {
+      for (const rec of nodes.values()) {
+        for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+          corners.push(rec.target.p.clone().addScaledVector(right, sx * rec.w / 2).addScaledVector(up, sy * rec.h / 2));
+        }
+      }
+      corners.push(new THREE.Vector3(0, maxY + 0.85, 0));
+    } else {
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+        corners.push(new THREE.Vector3(center.x + sx * hx, center.y + sy * hy, center.z + sz * hz));
+      }
     }
 
-    // pass 1: solve distance against the un-recentred target (the bbox center)
-    let dist = solveDist(center, angles.az, angles.el, corners, threshX, threshY);
+    // Cone cards sit on an asymmetric silhouette. Centre that silhouette in the
+    // camera plane instead of the wider world-space ring and external card.
+    const fitCenter = center.clone();
+    if (k === 'cone') {
+      let minR = Infinity, maxR = -Infinity, minU = Infinity, maxU = -Infinity, minD = Infinity, maxD = -Infinity;
+      for (const corner of corners) {
+        const r = corner.dot(right), u = corner.dot(up), d = corner.dot(dir);
+        minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+        minU = Math.min(minU, u); maxU = Math.max(maxU, u);
+        minD = Math.min(minD, d); maxD = Math.max(maxD, d);
+      }
+      fitCenter.addScaledVector(right, (minR + maxR) / 2 - fitCenter.dot(right));
+      fitCenter.addScaledVector(up, (minU + maxU) / 2 - fitCenter.dot(up));
+      fitCenter.addScaledVector(dir, (minD + maxD) / 2 - fitCenter.dot(dir));
+    }
+
+    // pass 1: solve distance against the projected content centre
+    let dist = solveDist(fitCenter, angles.az, angles.el, corners, threshX, threshY);
     if (dist === null) dist = analyticFallback();
 
     // recenter: the usable rect's on-screen center is offset from the full canvas's,
     // so shift the look-at target (in screen space, then converted to world units at
     // the fit distance) rather than centering on the full canvas.
-    const target = center.clone();
+    const target = fitCenter.clone();
     const worldPerPx = 2 * dist * Math.tan(vFov / 2) / fullH;
     const offsetX = 0; // both cuts above are full-width, so there's no horizontal skew
     const offsetY = (barH - capH) / 2;
@@ -1103,6 +1149,17 @@
     camera.position.set(target.x + dist * Math.sin(az) * Math.cos(el), target.y + dist * Math.sin(el), target.z + dist * Math.cos(az) * Math.cos(el));
     camera.lookAt(target);
   }
+  const paneFacing = new THREE.Quaternion();
+  function facePanes() {
+    if (currentLayout !== 'cone') return false;
+    paneFacing.copy(root.quaternion).invert().multiply(camera.quaternion);
+    let changed = false;
+    for (const rec of nodes.values()) {
+      if (1 - Math.abs(rec.mesh.quaternion.dot(paneFacing)) > 1e-10) changed = true;
+      rec.mesh.quaternion.copy(paneFacing);
+    }
+    return changed;
+  }
   const cv = renderer.domElement;
   let drag = null;
   let spaceHeld = false;
@@ -1110,7 +1167,7 @@
   // target across the screen plane, so what you drag to the middle stays the thing
   // orbit and zoom pivot around.
   addEventListener('keydown', e => {
-    if (e.code !== 'Space' || spaceHeld) return;
+    if (e.code !== 'Space' || spaceHeld || e.target.matches('input, button')) return;
     e.preventDefault();             // Space scrolls the page otherwise
     spaceHeld = true;
     cv.classList.add('panning');
@@ -1162,10 +1219,13 @@
   const ray = new THREE.Raycaster();
   let spin = null;
   function pick(e) {
+    if (currentLayout !== 'cone' || tween) return;
     const r = cv.getBoundingClientRect();
     const m = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(m, camera);
     const hit = ray.intersectObjects(paneGroup.children, false)[0];
+    selectedId = hit ? hit.object.userData.id : null;
+    buildEdges();
     if (!hit) return;
     const p = hit.object.position;
     const theta = Math.atan2(p.x, p.z);
@@ -1184,8 +1244,8 @@
   const CAPTIONS = {
     cone: {
       title: 'Cone tree', tag: 'Robertson, Mackinlay, Card · 1991',
-      body: 'The workspace frame becomes a cylinder. Top-level components sit on its surface, angle set by declaration order, so the layout is deterministic and stable across runs. Nested components hang as a smaller ring under their parent. The exchange sits outside the cylinder: inside the frame still means part of the system.',
-      depth: 'depth carries: containment only · edges attach by family: calls high, data flows mid, deny low · click a box to swing it to the front · the disc below is the tree’s shadow, the 2D map for free'
+      body: 'Components sit around the workspace ring; children hang below their parent. Every card faces you as you orbit. Click a component to bring it forward and show its connections, including its children. The exchange sits outside the workspace.',
+      depth: 'depth carries: containment · select All connections for the full graph · click empty space or press Esc to clear'
     },
     sheets: {
       title: 'Stacked sheets', tag: '2.5D clustered layout · Dwyer & Eades',
@@ -1214,7 +1274,7 @@
   // default for the rest of the session, until the page reloads ----------
   let captionExpanded = false;
   let captionManual = null;
-  function defaultCaptionExpanded() { return window.innerWidth >= 1100 && window.innerHeight >= 700; }
+  function defaultCaptionExpanded() { return currentLayout !== 'cone' && window.innerWidth >= 1100 && window.innerHeight >= 700; }
   function applyCaptionState(expanded) {
     captionExpanded = expanded;
     document.getElementById('caption').classList.toggle('collapsed', !expanded);
@@ -1236,7 +1296,11 @@
   });
 
   function applyLayout(k, animate) {
+    spin = null;
+    tween = null;
+    selectedId = null;
     currentLayout = k;
+    document.getElementById('connectionsControl').hidden = k !== 'cone';
     const { out, decor: d } = LAYOUTS[k]();
     decor = d;
     currentDecorKind = d.kind;
@@ -1313,6 +1377,7 @@
       dirty = true;
       if (t >= 1) spin = null;
     }
+    if (facePanes()) dirty = true;
     if (dirty) buildEdges();
     renderer.render(scene, camera);
     requestAnimationFrame(frame);

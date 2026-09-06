@@ -45,7 +45,7 @@ const html = `
       <div class="ply-tools" role="group" aria-label="Canvas controls">
         ${iconButton('Zoom out', '−')}${iconButton('Zoom in', '+')}${iconButton('Fit canvas', 'Fit')}
       </div>
-      <button type="button" class="ply-options-toggle" aria-controls="ply-vis-options" aria-expanded="true" aria-label="Hide options" title="Hide options">⋯</button>
+      <button type="button" class="ply-options-toggle" aria-controls="ply-vis-options" aria-expanded="true" aria-label="Hide options" title="Hide options">⌃</button>
       <div class="ply-options" id="ply-vis-options">
       <fieldset><legend>Detail</legend>
         <label><input type="checkbox" data-fold-detail checked> Fold detail when zoomed out</label>
@@ -138,6 +138,9 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     optionsToggle.setAttribute('aria-label', label);
     optionsToggle.title = label;
     optionsToggle.setAttribute('aria-expanded', String(!state.optionsHidden));
+    // Points the way the row will move: up folds it away, down brings it
+    // back. Same swap the inspector's own toggle does with its chevrons.
+    optionsToggle.textContent = state.optionsHidden ? '\u2304' : '\u2303';
   }
 
   function setOptionsHidden(optionsHidden: boolean, persist = true) {

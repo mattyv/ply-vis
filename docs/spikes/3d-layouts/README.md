@@ -21,7 +21,7 @@ to say. This spike asked whether a different spatial arrangement earns its place
 
 | Name | What depth means | Verdict |
 |---|---|---|
-| Cone tree | containment; boxes ring a cylinder, children on a smaller ring below | weakest. Boxes tangent to a cylinder turn edge-on, so two or three are readable at a time and the rest need rotating |
+| Cone tree | containment; boxes ring a cylinder, children on a smaller ring below | revised: cards face the camera, tiers have more room, and connections appear on selection; orbit and zoom still help with occlusion and small text |
 | Stacked sheets | how deep a component sits in the call chain; one glass sheet per top-level box | redundant. The flat drawing already orders boxes by that same rank down the page, so this moves an existing channel to a worse axis |
 | Nested glass | containment, drawn literally as boxes inside boxes | strongest of the four. Nothing can hide, and nesting reads without needing a legend |
 | Flat | nothing; the control | the most legible of the four, by a wide margin |
@@ -69,8 +69,15 @@ system weak".
 
 ## Known rough edges in the prototype
 
+- In the cone view, click a component to bring it forward and show its connections
+  (including its children). **All connections** restores the full graph; click empty
+  space or press Escape to clear the selection. The caption starts collapsed.
 - Click-to-focus works only in the cone arrangement, where it swings the cylinder.
   In the other three, clicking a box does nothing.
 - The dimming and Escape-to-zoom-out behaviour described above is not implemented.
 - Boxes are redrawn from a hand-transcribed model, so they will drift from the real
   grammar as it changes.
+
+Run the spike's browser check with `node docs/spikes/3d-layouts/check.mjs` from the
+repository root. It uses the installed Playwright Chromium and needs access to the
+same CDN as the prototype.
