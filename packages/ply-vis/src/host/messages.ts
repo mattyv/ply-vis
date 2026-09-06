@@ -13,7 +13,18 @@ export type HostRequest =
 export type HostResponse =
   | { channel: 'ply-vis'; version: 1; type: 'artifact'; envelope: VisualEnvelope }
   | { channel: 'ply-vis'; version: 1; type: 'restore-state'; state: ViewState }
-  | { channel: 'ply-vis'; version: 1; type: 'capabilities'; explain: boolean };
+  | { channel: 'ply-vis'; version: 1; type: 'capabilities'; explain: boolean }
+  // The host has nothing to draw and wants to say why: no workspace root
+  // picked, a run that would not load, a project switched away from.
+  //
+  // It needs its own type because `error` already exists in the *other*
+  // direction (viewer to host, for a runtime failure the host should log).
+  // The host was sending that one here, `isHostResponse` rejected it as it
+  // should, and the old drawing stayed on screen with no explanation --
+  // the reader looking at a picture of a run that is no longer the
+  // selected one, and nothing saying so. Found by external review
+  // 2026-09-06 with a controller-to-viewer test.
+  | { channel: 'ply-vis'; version: 1; type: 'clear'; message: string };
 
 export interface HostBridge { post(message: HostRequest): void }
 export const windowHostBridge = (): HostBridge => ({ post: (message) => window.parent.postMessage(message, '*') });
@@ -26,5 +37,5 @@ function isViewState(value: unknown): value is ViewState {
 export function isHostResponse(value: unknown): value is HostResponse {
   if (typeof value !== 'object' || value === null) return false;
   const message = value as Record<string, unknown>;
-  return message.channel === 'ply-vis' && message.version === 1 && (message.type === 'artifact' && 'envelope' in message || message.type === 'restore-state' && isViewState(message.state) || message.type === 'capabilities' && typeof message.explain === 'boolean');
+  return message.channel === 'ply-vis' && message.version === 1 && (message.type === 'artifact' && 'envelope' in message || message.type === 'restore-state' && isViewState(message.state) || message.type === 'capabilities' && typeof message.explain === 'boolean' || message.type === 'clear' && typeof message.message === 'string');
 }

@@ -25,7 +25,13 @@ describe('panel lifecycle', () => {
 
     await surface.listener?.({ channel: 'ply-vis', version: 1, type: 'ready' });
 
-    expect(surface.messages.at(-1)).toMatchObject({ type: 'error', message: expect.stringContaining('no completed visual runs have been published yet') });
+    // `clear`, not `error`. This asserted `error` until 2026-09-06 and so
+    // pinned the defect in place: `error` travels viewer-to-host, the
+    // viewer's own guard dropped it, and the reader was told nothing while
+    // whatever was on screen stayed there. A test that checks the host
+    // *sent* a message cannot tell whether anything could receive it --
+    // which is why `viewer-clear.test.ts` drives the viewer end instead.
+    expect(surface.messages.at(-1)).toMatchObject({ type: 'clear', message: expect.stringContaining('no completed visual runs have been published yet') });
   });
 
   it('restores state and serves the last loaded artifact when the viewer becomes ready', async () => {

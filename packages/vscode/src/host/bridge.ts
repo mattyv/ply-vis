@@ -11,11 +11,22 @@ export type ViewerRequest =
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'request-artifact' }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain'; readonly code: string }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'explain-prompt' };
+// A second, hand-written copy of the viewer's own `HostResponse`. It exists
+// because this package types the payloads with its own `SourceRange` and
+// `PersistedViewState` rather than the viewer's, and it had **drifted**: it
+// carried an `error` member the viewer's union never had, so the host could
+// build and send a message the viewer's guard was right to reject, and did.
+// That is the whole of the "announces it cleared the drawing and never
+// clears it" defect (external review, 2026-09-06).
+//
+// `protocol-agreement.test.ts` compares the two declarations member for
+// member now, so a member added to one and not the other fails here rather
+// than shipping as a message nobody receives.
 export type HostResponse =
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'artifact'; readonly envelope: VisualEnvelope }
   | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'restore-state'; readonly state: PersistedViewState }
-  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'error'; readonly message: string }
-  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'capabilities'; readonly explain: boolean };
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'capabilities'; readonly explain: boolean }
+  | { readonly channel: 'ply-vis'; readonly version: 1; readonly type: 'clear'; readonly message: string };
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const exact = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
@@ -60,8 +71,24 @@ export function parseViewerRequest(value: unknown): ViewerRequest | undefined {
 
 export const artifactMessage = (envelope: VisualEnvelope): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'artifact', envelope });
 export const restoreStateMessage = (state: PersistedViewState): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'restore-state', state });
-export const errorMessage = (message: string): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'error', message });
 /** What this host can do beyond drawing. The viewer hides an action rather
  * than offering one the host will fail -- JetBrains reads the same messages
  * and cannot run the CLI at all, so it simply never sends this. */
 export const capabilitiesMessage = (explain: boolean): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'capabilities', explain });
+/**
+ * Take the drawing down and say why.
+ *
+ * This used to build an `error` message, and `error` travels the other way
+ * -- viewer to host, for a runtime failure the host should log. The viewer's
+ * own guard rejected it, correctly, so the host announced it was showing
+ * nothing while the previous drawing stayed on screen: a picture of a run
+ * that is no longer the selected one, with nothing saying so. That is what
+ * made "switching projects leaves the old drawing up" survive the fix that
+ * was meant to stop it -- the message explaining the blank was never
+ * delivered, so there was no blank either.
+ *
+ * Only for when there is genuinely nothing to draw. A message *about* a
+ * drawing that is still up belongs in the host's own reporter, not here --
+ * sending this would wipe the very drawing the message says is being shown.
+ */
+export const clearMessage = (message: string): HostResponse => ({ channel: 'ply-vis', version: 1, type: 'clear', message });

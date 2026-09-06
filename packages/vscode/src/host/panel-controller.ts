@@ -1,7 +1,7 @@
 import type { Disposable } from './surface';
 import type { LoadState, WorkspaceRoot } from '../core/result-source';
 import { firstUseMessage } from '../core/first-use';
-import { artifactMessage, capabilitiesMessage, errorMessage, parseViewerRequest, restoreStateMessage } from './bridge';
+import { artifactMessage, capabilitiesMessage, clearMessage, parseViewerRequest, restoreStateMessage } from './bridge';
 import type { StateStore } from './state-store';
 import type { SourceNavigator } from '../vscode/source-navigation';
 
@@ -43,12 +43,24 @@ export class PanelController implements Disposable {
       // Nothing to replace the drawing with, and it belongs to a different
       // project than the one now selected. Say so rather than leaving it up
       // as though it described the new one.
-      void this.surface.postMessage(errorMessage(
+      //
+      // This was already the intent; it did not happen. The message was
+      // built as `error`, which travels viewer-to-host, so the viewer's own
+      // guard dropped it and the drawing stayed exactly where it was. A
+      // `clear` is a message the viewer accepts and acts on.
+      void this.surface.postMessage(clearMessage(
         `No completed Ply run for ${root.name} yet. Showing nothing rather than ${this.displayedRoot.name}'s last run, which describes a different project.`,
       ));
       this.displayedRoot = undefined;
     }
-    if (state.error) void this.surface.postMessage(errorMessage(`${state.error}${state.snapshot ? ' Showing the last complete run.' : ''}`));
+    // A notice *about* a drawing that is still on screen must not clear it,
+    // so those two situations no longer share one message: with a snapshot
+    // up, the reader is told through the host's own reporter; with nothing
+    // to draw, the viewer is told to show the reason instead.
+    if (state.error) {
+      if (state.snapshot) this.reporter.error(`${state.error} Showing the last complete run.`);
+      else void this.surface.postMessage(clearMessage(state.error));
+    }
   }
   public dispose(): void { this.subscription.dispose(); }
   private async receive(raw: unknown): Promise<void> {
@@ -80,6 +92,6 @@ export class PanelController implements Disposable {
       await this.surface.postMessage(restoreStateMessage(this.state.viewState()));
     }
     if (this.loadState.snapshot) await this.surface.postMessage(artifactMessage(this.loadState.snapshot.envelope));
-    else await this.surface.postMessage(errorMessage(this.loadState.error ?? firstUseMessage(true)));
+    else await this.surface.postMessage(clearMessage(this.loadState.error ?? firstUseMessage(true)));
   }
 }
