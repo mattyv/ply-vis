@@ -987,10 +987,44 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     if (event.key === 'Escape') { event.preventDefault(); const parent = state.focusedId ? active?.elements[state.focusedId]?.parentId : undefined; focus(parent); }
   });
 
+  /**
+   * Take the drawing down and say why, returning the canvas to the state it
+   * had before anything was ever loaded.
+   *
+   * A drawing left up after the host has moved on is worse than a blank
+   * panel: it is a picture of a run that is no longer the selected one, and
+   * a reader has no way to tell. So this clears rather than dims, and the
+   * reason goes exactly where "Waiting for a visual artifact…" goes, since
+   * that is where a reader already looks when there is nothing to see.
+   */
+  function clearDrawing(message: string) {
+    active = undefined;
+    paintedDepth = undefined;
+    stage.innerHTML = '';
+    hideTooltip();
+    hideContextMenu();
+    canvas.dataset.empty = 'true';
+    const existing = canvas.querySelector('.ply-empty');
+    if (existing) existing.textContent = message;
+    else {
+      const note = document.createElement('p');
+      note.className = 'ply-empty';
+      note.textContent = message;
+      canvas.append(note);
+    }
+    breadcrumbs.hidden = true;
+    inspectorToggle.hidden = true;
+    renderDetailsVisibility();
+    provenance.textContent = '';
+    provenance.removeAttribute('title');
+    status.textContent = '';
+  }
+
   const receive = (event: MessageEvent) => {
     if (!isHostResponse(event.data)) return;
     if (event.data.type === 'artifact') load(event.data.envelope);
     else if (event.data.type === 'capabilities') canExplain = event.data.explain;
+    else if (event.data.type === 'clear') clearDrawing(event.data.message);
     else {
       state = updateViewState(state, event.data.state);
       root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => { input.checked = state.overlays[input.dataset.overlay as keyof ViewState['overlays']]; });
