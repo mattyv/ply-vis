@@ -51,6 +51,7 @@ const html = `
       <fieldset><legend>Detail</legend>
         <label><input type="checkbox" data-fold-detail checked> Fold detail when zoomed out</label>
         <label><input type="checkbox" data-hover-tooltips checked> Show tooltips on hover</label>
+        <label><input type="checkbox" data-show-legend> Show legend</label>
       </fieldset>
       <fieldset data-evidence-filters><legend>Overlays</legend>
         <label><input type="checkbox" data-overlay="earned" checked> Earned</label>
@@ -66,6 +67,7 @@ const html = `
     <div class="ply-workspace is-inspector-hidden">
       <main class="ply-canvas" tabindex="0" aria-label="Architecture canvas. Use arrow keys to move between items and Enter to inspect." data-empty="true">
         <div class="ply-stage"></div>
+        <section class="ply-legend-panel" aria-label="Diagram legend" hidden></section>
         <div class="ply-tooltip" id="ply-vis-tooltip" role="tooltip" hidden></div>
         <ul class="ply-context-menu" id="ply-vis-context-menu" role="menu" aria-label="Item options" hidden></ul>
         <p class="ply-empty">Waiting for a visual artifact…</p>
@@ -81,6 +83,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   const root = container.querySelector<HTMLElement>('.ply-vis')!;
   const canvas = root.querySelector<HTMLElement>('.ply-canvas')!;
   const stage = root.querySelector<HTMLElement>('.ply-stage')!;
+  const legend = root.querySelector<HTMLElement>('.ply-legend-panel')!;
   const tooltip = root.querySelector<HTMLElement>('.ply-tooltip')!;
   const contextMenu = root.querySelector<HTMLElement>('.ply-context-menu')!;
   const inspector = root.querySelector<HTMLElement>('.ply-inspector')!;
@@ -169,6 +172,65 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     if (element.evidence.state) return element.evidence.state;
     const supplied = new Set([element.evidence.verdict, ...element.evidence.statuses]);
     return supplied.has('violation') ? 'violation' : supplied.has('gap') ? 'gap' : supplied.has('earned') ? 'earned' : 'declared';
+  }
+
+  const legendCopy: Readonly<Record<EvidenceState, readonly [string, string]>> = {
+    declared: ['Declared', 'Promised, not checked'],
+    earned: ['Earned', 'Evidence completed'],
+    gap: ['Gap', 'Evidence missing'],
+    violation: ['Violation', 'A rule was broken'],
+  };
+
+  /**
+   * Keep the legend about the drawing on screen, not the whole visual
+   * vocabulary. Focus, folding, and evidence filters can all remove content;
+   * an entry disappears with the last visible item that uses it.
+   */
+  function renderLegend() {
+    legend.replaceChildren();
+    if (!active || !state.legendVisible) { legend.hidden = true; return; }
+    const visibleInStage = (selector: string) =>
+      [...stage.querySelectorAll<SVGElement>(selector)].some((node) => !node.closest('[hidden]'));
+    const present = new Set<EvidenceState>();
+    for (const node of stage.querySelectorAll<SVGElement>('[data-state]')) {
+      if (node.closest('[hidden]')) continue;
+      const evidenceState = node.dataset.state as EvidenceState;
+      if (evidenceState in legendCopy) present.add(evidenceState);
+    }
+    // Declaration-only renders may carry their explanations solely in the
+    // SVG and have no indexed elements for the viewer to classify.
+    if (!present.size && stage.querySelector('svg')) present.add('declared');
+    const heading = document.createElement('h2'); heading.textContent = 'Legend';
+    const list = document.createElement('ul');
+    const appendItem = (label: string, description: string, marker: { state?: EvidenceState; symbol?: string }) => {
+      const item = document.createElement('li');
+      const swatch = document.createElement('span'); swatch.className = 'ply-legend-swatch'; swatch.setAttribute('aria-hidden', 'true');
+      if (marker.state) swatch.dataset.state = marker.state;
+      if (marker.symbol) swatch.dataset.symbol = marker.symbol;
+      if (marker.symbol === 'trusted') swatch.textContent = '\u26c9';
+      if (marker.symbol === 'decision') swatch.textContent = '#';
+      const copy = document.createElement('span');
+      const name = document.createElement('strong'); name.textContent = label;
+      const detail = document.createElement('span'); detail.textContent = description;
+      copy.append(name, detail); item.append(swatch, copy); list.append(item);
+    };
+    for (const evidenceState of ['declared', 'earned', 'gap', 'violation'] as const) {
+      if (!present.has(evidenceState)) continue;
+      const [label, description] = legendCopy[evidenceState];
+      appendItem(label, description, { state: evidenceState });
+    }
+    if (visibleInStage('.ceiling-tested, .ceiling-fuzzed, .ceiling-bounded, .ceiling-proved')) appendItem('Grey depth', 'Darker means stronger checks promised', { symbol: 'ceiling' });
+    if (visibleInStage('.ceiling-unclaimed')) appendItem('Hatched fill', 'Nothing here promises a check', { symbol: 'unclaimed' });
+    if (visibleInStage('.fn-chip-box-synth')) appendItem('Violet fill', 'Machine-written from its contract', { symbol: 'synth' });
+    if (visibleInStage('.strict-notch')) appendItem('Strict request', 'Asks for errors, not warnings', { symbol: 'strict' });
+    if (visibleInStage('.fn-shield')) appendItem('Trusted claim', 'Human-attested, not machine-checked', { symbol: 'trusted' });
+    if (visibleInStage('.unresolved-pin, .registry-pin')) appendItem('Open decision', 'A question still needs an answer', { symbol: 'decision' });
+    if (visibleInStage('.edge-call')) appendItem('Call', 'Solid arrow', { symbol: 'call' });
+    if (visibleInStage('.edge-flow')) appendItem('Data flow', 'Dashed arrow', { symbol: 'flow' });
+    if (visibleInStage('.edge-entry')) appendItem('External entry', 'Dashed arrow from outside', { symbol: 'entry' });
+    if (visibleInStage('.deny-rule')) appendItem('Forbidden call', 'This call is not allowed', { symbol: 'denied' });
+    legend.append(heading, list);
+    legend.hidden = false;
   }
 
   /**
@@ -605,6 +667,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       if (node === tooltipTarget && (node.hasAttribute('hidden') || !node.isConnected)) hideTooltip();
     }
     applyFocusGeometry();
+    renderLegend();
     const visibleNodes = nodes.filter((node) => !node.hasAttribute('hidden') && itemForNode(node));
     const rovingTarget = visibleNodes.find((node) => itemForNode(node)?.id === state.selectedId) ?? visibleNodes[0];
     for (const node of nodes) node.setAttribute('tabindex', node === rovingTarget ? '0' : '-1');
@@ -940,6 +1003,12 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       ? 'Tooltips appear on hover'
       : 'Tooltips stay hidden on hover; tabbing to an item still shows one';
   });
+  root.querySelector<HTMLInputElement>('[data-show-legend]')!.addEventListener('change', (event) => {
+    const legendVisible = (event.target as HTMLInputElement).checked;
+    setState({ legendVisible });
+    renderLegend();
+    status.textContent = legendVisible ? 'Legend shown' : 'Legend hidden';
+  });
   breadcrumbs.addEventListener('click', (event) => { const target = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-focus-id]'); if (target) focus(target.dataset.focusId || undefined); });
   stage.addEventListener('click', (event) => {
     if (performance.now() < suppressClickUntil) return;
@@ -951,11 +1020,14 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const node = tooltipNode(event.target); if (node) scheduleTooltip(node, event.clientX, event.clientY);
   });
   stage.addEventListener('pointermove', (event) => {
-    if (!state.hoverTooltips) { cancelTooltipTimer(); return; }
     const node = tooltipNode(event.target);
-    if (!node) { cancelTooltipTimer(); return; }
-    if (node === tooltipTarget && !tooltip.hidden) positionTooltip(event.clientX, event.clientY);
-    else scheduleTooltip(node, event.clientX, event.clientY);
+    // Hover detail is useful once the pointer has come to rest, but it must
+    // not chase the pointer and cover the drawing while the reader moves on.
+    // Hide it on the first movement, then require another quiet interval
+    // before showing it at the pointer's new position.
+    if (!tooltip.hidden) hideTooltip();
+    if (!state.hoverTooltips || !node) { cancelTooltipTimer(); return; }
+    scheduleTooltip(node, event.clientX, event.clientY);
   });
   stage.addEventListener('pointerout', (event) => {
     const node = tooltipNode(event.target);
@@ -1008,6 +1080,10 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     if (!drag.moved) {
       drag.moved = true;
       canvas.classList.add('is-panning');
+      // Floating explanations obscure the drawing being positioned. Keep the
+      // preference intact, but clear both overlays for the duration of a pan.
+      hideTooltip();
+      legend.hidden = true;
       try { canvas.setPointerCapture(drag.pointerId); } catch { /* Assistive input can pan without capture. */ }
     }
     event.preventDefault();
@@ -1016,9 +1092,11 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
   });
   const finishDrag = () => {
     if (!drag) return;
-    if (drag.moved) { suppressClickUntil = performance.now() + 250; postState(); }
+    const moved = drag.moved;
+    if (moved) { suppressClickUntil = performance.now() + 250; postState(); }
     drag = undefined;
     canvas.classList.remove('is-panning');
+    if (moved) renderLegend();
   };
   canvas.addEventListener('pointerup', finishDrag);
   canvas.addEventListener('pointercancel', finishDrag);
@@ -1067,6 +1145,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     // preference for the next drawing that has something.
     state = { ...state, selectedId: undefined, focusedId: undefined, detailsHidden: true };
     stage.innerHTML = '';
+    renderLegend();
     hideTooltip();
     hideContextMenu();
     canvas.dataset.empty = 'true';
@@ -1100,6 +1179,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       root.querySelectorAll<HTMLInputElement>('[data-overlay]').forEach((input) => { input.checked = state.overlays[input.dataset.overlay as keyof ViewState['overlays']]; });
       root.querySelector<HTMLInputElement>('[data-fold-detail]')!.checked = state.foldDetail;
       root.querySelector<HTMLInputElement>('[data-hover-tooltips]')!.checked = state.hoverTooltips;
+      root.querySelector<HTMLInputElement>('[data-show-legend]')!.checked = state.legendVisible;
       // Outside the `active` guard: the toolbar exists before any artifact
       // arrives, so a restored fold has to show on it either way.
       renderOptionsVisibility();
