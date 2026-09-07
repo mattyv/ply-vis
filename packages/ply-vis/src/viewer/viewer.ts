@@ -187,8 +187,15 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
    * here, with the old literal kept as a harmless extra check.
    */
   function describeProvenance(envelope: VisualEnvelope): { text: string; title?: string } {
+    // `every` is true of an empty list, so an envelope carrying no elements
+    // at all satisfied "every element is declaration-only" and a real run
+    // that happens to draw nothing was described as a drawing no check has
+    // ever touched -- a claim about evidence, invented out of an absence of
+    // it (external review, 2026-09-07). The inference needs something to
+    // infer from; the explicit `render` signal stands on its own.
+    const drawn = Object.values(envelope.elements);
     const promisesOnly = envelope.run.tool.version === 'render'
-      || Object.values(envelope.elements).every((element) => classifyElement(element) === 'declared');
+      || (drawn.length > 0 && drawn.every((element) => classifyElement(element) === 'declared'));
     if (promisesOnly) return { text: 'Promises only — no run has checked this yet, so nothing here can ever be green.' };
     const text = `Showing a run completed ${new Date(envelope.run.completedAt).toLocaleString()}.`;
     // Ply moves its build identity whenever its behaviour could have

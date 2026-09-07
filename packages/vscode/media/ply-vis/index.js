@@ -262,14 +262,15 @@ function Ht(n, i, y = []) {
     return t.has("violation") ? "violation" : t.has("gap") ? "gap" : t.has("earned") ? "earned" : "declared";
   }
   function Je(e) {
-    if (e.run.tool.version === "render" || Object.values(e.elements).every((l) => ke(l) === "declared")) return { text: "Promises only — no run has checked this yet, so nothing here can ever be green." };
-    const o = `Showing a run completed ${new Date(e.run.completedAt).toLocaleString()}.`, s = e.run.tool.version;
-    return G !== void 0 && /^[0-9a-f]{64}$/.test(s) && /^[0-9a-f]{64}$/.test(G) && s !== G ? {
-      text: `${o} Ply itself has changed since this run, so nothing here would be carried forward — every check would run again.`,
+    const t = Object.values(e.elements);
+    if (e.run.tool.version === "render" || t.length > 0 && t.every((f) => ke(f) === "declared")) return { text: "Promises only — no run has checked this yet, so nothing here can ever be green." };
+    const s = `Showing a run completed ${new Date(e.run.completedAt).toLocaleString()}.`, r = e.run.tool.version;
+    return G !== void 0 && /^[0-9a-f]{64}$/.test(r) && /^[0-9a-f]{64}$/.test(G) && r !== G ? {
+      text: `${s} Ply itself has changed since this run, so nothing here would be carried forward — every check would run again.`,
       title: `Run ${e.run.id}
-Ran by ${s}
+Ran by ${r}
 Installed ${G}`
-    } : { text: o, title: `Run ${e.run.id}` };
+    } : { text: s, title: `Run ${e.run.id}` };
   }
   function de(e, t, o) {
     for (const s of ve(e.parentId ? o[e.parentId] : void 0, o)) if (s.id === t) return !0;
