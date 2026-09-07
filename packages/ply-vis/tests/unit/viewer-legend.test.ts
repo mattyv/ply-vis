@@ -93,6 +93,37 @@ describe('evidence legend', () => {
     viewer.destroy();
   });
 
+  it('shows nothing rather than inventing a declared entry when filters empty the drawing', () => {
+    // A drawing whose every item is earned, with the Earned overlay off, has
+    // nothing visible -- and nothing declared. The fallback below exists for
+    // a declaration-only render that carries no indexed elements at all, and
+    // firing it here put a "Declared" entry in the legend for items that do
+    // not exist (external review, 2026-09-07).
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    viewer.load({
+      protocolVersion: 1,
+      run: { id: 'earned-only', completedAt: '2026-09-07T00:00:00Z', root: { path: '.' }, tool: { name: 'ply', version: 'test' }, outcome: 'clean' },
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><g data-element-id="a"><rect width="10" height="10"/></g></svg>',
+      elements: {
+        a: { id: 'a', kind: 'function', label: 'a', evidence: { verdict: 'earned', statuses: [], reused: false, state: 'earned' }, diagnosticIds: [] },
+      },
+      diagnostics: [],
+    });
+    check(container.querySelector<HTMLInputElement>('[data-show-legend]')!);
+    const legend = container.querySelector<HTMLElement>('.ply-legend-panel')!;
+    expect(legend.textContent).toContain('Earned');
+
+    const earned = container.querySelector<HTMLInputElement>('[data-overlay="earned"]')!;
+    earned.checked = false;
+    earned.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(legend.textContent).not.toContain('Declared');
+    expect(legend.querySelectorAll('li')).toHaveLength(0);
+    viewer.destroy();
+  });
+
   it('shows one declared entry for a declaration-only SVG with no indexed evidence', () => {
     const container = document.createElement('div');
     document.body.append(container);

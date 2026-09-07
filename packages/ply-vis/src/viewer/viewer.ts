@@ -198,8 +198,15 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       if (evidenceState in legendCopy) present.add(evidenceState);
     }
     // Declaration-only renders may carry their explanations solely in the
-    // SVG and have no indexed elements for the viewer to classify.
-    if (!present.size && stage.querySelector('svg')) present.add('declared');
+    // SVG and have no indexed elements for the viewer to classify. That is
+    // the only case this fallback is for: keyed on nothing being *visible*,
+    // it also fired when the filters emptied a drawing that has evidence in
+    // it, putting a "Declared" entry in the legend for items that do not
+    // exist (external review, 2026-09-07). An artifact with indexed
+    // elements, all of them currently hidden, describes nothing -- so the
+    // legend says nothing.
+    const indexed = Object.keys(active.elements).length > 0;
+    if (!present.size && !indexed && stage.querySelector('svg')) present.add('declared');
     const heading = document.createElement('h2'); heading.textContent = 'Legend';
     const list = document.createElement('ul');
     const appendItem = (label: string, description: string, marker: { state?: EvidenceState; symbol?: string }) => {
@@ -249,8 +256,15 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
    * here, with the old literal kept as a harmless extra check.
    */
   function describeProvenance(envelope: VisualEnvelope): { text: string; title?: string } {
+    // `every` is true of an empty list, so an envelope carrying no elements
+    // at all satisfied "every element is declaration-only" and a real run
+    // that happens to draw nothing was described as a drawing no check has
+    // ever touched -- a claim about evidence, invented out of an absence of
+    // it (external review, 2026-09-07). The inference needs something to
+    // infer from; the explicit `render` signal stands on its own.
+    const drawn = Object.values(envelope.elements);
     const promisesOnly = envelope.run.tool.version === 'render'
-      || Object.values(envelope.elements).every((element) => classifyElement(element) === 'declared');
+      || (drawn.length > 0 && drawn.every((element) => classifyElement(element) === 'declared'));
     if (promisesOnly) return { text: 'Promises only — no run has checked this yet, so nothing here can ever be green.' };
     const text = `Showing a run completed ${new Date(envelope.run.completedAt).toLocaleString()}.`;
     // Ply moves its build identity whenever its behaviour could have
