@@ -23,7 +23,7 @@ describe('viewer framing', () => {
     viewer.destroy();
   });
 
-  it('hides buried detail when zooming out and restores it when zooming in', () => {
+  it('does not punch empty holes in the full drawing when a folded depth is unavailable', () => {
     const container = document.createElement('div');
     document.body.append(container);
     const viewer = mountViewer(container, { post: () => undefined });
@@ -42,11 +42,35 @@ describe('viewer framing', () => {
     const fn = container.querySelector('[data-element-id="function"]')!;
 
     canvas.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1000 }));
-    expect(fn.hasAttribute('hidden')).toBe(true);
-    expect(container.querySelector('[data-element-id="component"]')!.hasAttribute('hidden')).toBe(false);
-
-    canvas.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: -1000 }));
     expect(fn.hasAttribute('hidden')).toBe(false);
+    expect(container.querySelector('[data-element-id="component"]')!.hasAttribute('hidden')).toBe(false);
+    viewer.destroy();
+  });
+
+  it('uses a folded drawing relative to the focused box instead of hollowing out the full one', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    const evidence = { verdict: 'unclaimed', statuses: [], reused: false };
+    viewer.load({
+      protocolVersion: 1,
+      run: { id: 'focused-fold', completedAt: '2026-09-01T00:00:00Z', root: { path: '.' }, tool: { name: 'ply', version: 'render' }, outcome: 'clean' },
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" id="full"><g data-element-id="workspace"><g data-element-id="outer"><g data-element-id="inner"><g data-element-id="function"><rect width="10" height="10"/></g></g></g></g></svg>',
+      folded: [{ depth: 2, svg: '<svg xmlns="http://www.w3.org/2000/svg" id="depth-2"><g data-element-id="workspace"><g data-element-id="outer"><g data-element-id="inner"><rect width="20" height="20"/></g></g></g></svg>' }],
+      elements: {
+        workspace: { id: 'workspace', kind: 'workspace', label: 'workspace', evidence, diagnosticIds: [] },
+        outer: { id: 'outer', kind: 'component', label: 'outer', parentId: 'workspace', evidence, diagnosticIds: [] },
+        inner: { id: 'inner', kind: 'component', label: 'inner', parentId: 'outer', evidence, diagnosticIds: [] },
+        function: { id: 'function', kind: 'fn', label: 'function', parentId: 'inner', evidence, diagnosticIds: [] },
+      }, diagnostics: [],
+    });
+
+    container.querySelector('[data-element-id="outer"]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    container.querySelector<HTMLElement>('.ply-canvas')!.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 1000 }));
+
+    expect(viewer.getState().focusedId).toBe('outer');
+    expect(container.querySelector('svg')?.id).toBe('depth-2');
+    expect(container.querySelector('[data-element-id="inner"]')!.hasAttribute('hidden')).toBe(false);
     viewer.destroy();
   });
 

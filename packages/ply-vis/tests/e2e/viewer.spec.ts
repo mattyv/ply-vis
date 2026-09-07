@@ -17,6 +17,34 @@ test('boots offline with every supplied visual state and accessible controls', a
   await expect(page.getByRole('button', { name: 'Zoom in' })).toBeVisible();
 });
 
+test('shows a compact HTML legend for only the visual semantics on screen', async ({ page }) => {
+  const legend = page.getByRole('region', { name: 'Diagram legend' });
+  await expect(legend).toBeHidden();
+
+  await page.getByRole('checkbox', { name: 'Show legend' }).check();
+  await expect(legend).toBeVisible();
+  await expect(legend.getByRole('listitem')).toHaveCount(3);
+  await expect(legend).toContainText('Earned');
+  await expect(legend).toContainText('Gap');
+  await expect(legend).toContainText('Violation');
+  await expect(legend).not.toContainText('Declared');
+  await expect(page.locator('svg .ply-legend-panel')).toHaveCount(0);
+
+  await page.getByRole('checkbox', { name: 'Gap', exact: true }).uncheck();
+  await expect(legend).not.toContainText('Gap');
+  await expect(legend.getByRole('listitem')).toHaveCount(2);
+
+  const canvas = page.locator('.ply-canvas');
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('Expected the canvas');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 10, box.y + box.height / 2 + 10);
+  await expect(legend).toBeHidden();
+  await page.mouse.up();
+  await expect(legend).toBeVisible();
+});
+
 test('zooms, pans, fits, filters overlays, and restores immutable view state', async ({ page }) => {
   const stage = page.locator('.ply-stage');
   const beforeZoom = await page.evaluate(() => (window as any).viewer.getState());
