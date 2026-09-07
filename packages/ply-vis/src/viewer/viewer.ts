@@ -286,6 +286,15 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     return state.focusedId && current?.id !== state.focusedId ? Number.POSITIVE_INFINITY : depth;
   }
 
+  /** The renderer's component level for an element (top-level boxes are 1). */
+  function componentLevel(element: VisualElement): number {
+    let level = 0;
+    for (const enclosing of ancestry(element, active?.elements ?? {})) {
+      if (enclosing.kind === 'component') level += 1;
+    }
+    return level;
+  }
+
   // Judged by apparent size, which is what legibility actually depends on:
   // below about 80% the smallest text in a Ply drawing stops being readable,
   // so continuing to draw it is noise rather than information. Briefly
@@ -659,7 +668,10 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
       const overlayVisible = stateClass === 'declared' || state.overlays[stateClass];
       const focusAncestor = focused ? isDescendant(focused, element.id, active.elements) : false;
       const focusVisible = !state.focusedId || element.id === state.focusedId || isDescendant(element, state.focusedId, active.elements) || focusAncestor;
-      const detailVisible = focusAncestor || detailDepth(element) <= visibleDetailDepth();
+      // A full drawing is a fallback, not a folded drawing. Hiding detail in
+      // it keeps the original box geometry and creates large empty interiors.
+      // When no matching re-render exists, show the full contents honestly.
+      const detailVisible = paintedDepth === undefined || focusAncestor || detailDepth(element) <= visibleDetailDepth();
       node.toggleAttribute('hidden', !focusVisible || !detailVisible || (!overlayVisible && !focusAncestor));
       const classifications = [element.evidence.verdict, ...element.evidence.statuses].filter(Boolean).join(', ') || 'declared';
       node.setAttribute('role', 'button'); node.setAttribute('aria-label', `${element.kind}: ${element.label}; ${classifications}`); node.dataset.state = stateClass;
@@ -815,7 +827,7 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
    */
   function syncDrawing() {
     if (!active) return;
-    const wanted = state.focusedId ? undefined : drawingDepth();
+    const wanted = drawingDepth();
     if (wanted === paintedDepth) return;
     const drawing = wanted === undefined
       ? active.svg
@@ -837,8 +849,16 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
    */
   function drawingDepth(): number | undefined {
     if (!active) return undefined;
-    const wanted = visibleDetailDepth();
+    let wanted = visibleDetailDepth();
     if (!Number.isFinite(wanted)) return undefined;
+    if (state.focusedId) {
+      const focused = active.elements[state.focusedId];
+      // Functions have no independently foldable interior. Components do:
+      // translate the local depth the reader asked for into the renderer's
+      // absolute level so the focused box itself stays expanded.
+      if (!focused || focused.kind !== 'component') return undefined;
+      wanted += componentLevel(focused);
+    }
     return active.folded.some((candidate) => candidate.depth === wanted) ? wanted : undefined;
   }
 
