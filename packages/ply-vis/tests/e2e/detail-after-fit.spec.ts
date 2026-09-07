@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-// Folding detail when you pull back is the point: at 40% the text is too
-// small to read, so drawing it is noise. But it is a preference, not a law
-// -- a reader who wants the whole thing on screen at once should be able to
-// say so. These two tests pin both sides of that switch against a real
-// three-deep drawing, in a real browser, because it is entirely geometry.
+// This fixture predates the folded drawings newer Ply envelopes carry. A
+// legacy artifact cannot be compacted without leaving its original boxes at
+// full-detail size, so the safe fallback is to keep all of its contents.
+// Folding itself is covered against the newer Ply self-render fixture in
+// ply-self-navigation.spec.ts.
 
 async function load(page: import('@playwright/test').Page) {
   await page.setViewportSize({ width: 1400, height: 900 });
@@ -30,7 +30,7 @@ async function hiddenCount(page: import('@playwright/test').Page) {
   });
 }
 
-test('folding is on by default, so a pulled-back view stays legible', async ({ page }) => {
+test('a legacy artifact without folded drawings stays complete when pulled back', async ({ page }) => {
   await load(page);
   const before = await hiddenCount(page);
   expect(before.hidden, 'a fitted document that fits should be showing things').toBeGreaterThanOrEqual(0);
@@ -43,7 +43,10 @@ test('folding is on by default, so a pulled-back view stays legible', async ({ p
   });
   await page.waitForTimeout(200);
   const after = await hiddenCount(page);
-  expect(after.hidden, 'pulled right back, the small text should be folded away').toBeGreaterThan(0);
+  expect(
+    after.hidden,
+    'without a compact re-render, hiding detail would leave the full-size boxes empty',
+  ).toBe(0);
 });
 
 test('a reader can switch folding off and keep everything on screen', async ({ page }) => {
