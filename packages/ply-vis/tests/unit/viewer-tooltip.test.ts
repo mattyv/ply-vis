@@ -165,6 +165,25 @@ describe('the "Show tooltips on hover" setting', () => {
     vi.useRealTimers();
   });
 
+  it('hides a visible hover tooltip as soon as the pointer moves, then waits for rest before showing it again', () => {
+    vi.useFakeTimers();
+    const { viewer, tooltip, node } = mountWithHoveredTooltip();
+    expect(tooltip.hidden).toBe(false);
+
+    node.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 20, clientY: 20 }));
+    expect(tooltip.hidden).toBe(true);
+    expect(node.hasAttribute('aria-describedby')).toBe(false);
+
+    vi.advanceTimersByTime(499);
+    expect(tooltip.hidden).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(tooltip.hidden).toBe(false);
+    expect(node.getAttribute('aria-describedby')).toBe(tooltip.id);
+
+    viewer.destroy();
+    vi.useRealTimers();
+  });
+
   it('shows no tooltip on hover once switched off', () => {
     vi.useFakeTimers();
     const { tooltip, node, hoverToggle } = mountWithNode();

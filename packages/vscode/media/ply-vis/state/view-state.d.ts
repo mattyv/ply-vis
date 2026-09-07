@@ -15,6 +15,8 @@ export interface ViewState {
     readonly foldDetail: boolean;
     /** Show the tooltip when the pointer hovers an item. On by default. Keyboard focus shows the tooltip regardless of this setting -- hovering isn't available to a keyboard user, and most of a drawing's detail lives in hover text, so muting only the hover path can't cut anyone off from it. */
     readonly hoverTooltips: boolean;
+    /** Show a compact diagram legend over the canvas. Off by default so the drawing keeps the full canvas until the reader asks for it. */
+    readonly legendVisible: boolean;
     /** Fold the two checkbox groups away. Off by default: they are visible until the reader asks otherwise, so nothing they rely on vanishes unbidden. The zoom buttons are never folded -- those are used constantly. */
     readonly optionsHidden: boolean;
 }
