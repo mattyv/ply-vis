@@ -54,11 +54,29 @@ Ply Visual hides unrelated geometry while focused. Hover diagram items for Ply's
 tooltips. The Details pane starts closed; select an item to open it, or use the
 edge control to show or hide it.
 
-## Install locally
+Turn on **Show legend** to decode only the marks in the current drawing. The legend
+names module-boundary architecture checks and application acceptance tests separately;
+it does not fold either into function-level evidence.
 
-Build, package, and install the VS Code extension from this repository:
+## Install
+
+Install the [Ply command](https://github.com/mattyv/ply#install) separately to run
+checks and publish the evidence that Ply Visual displays.
+
+Tagged releases publish a VS Code `.vsix` and a JetBrains plugin `.zip` on
+[GitHub Releases](https://github.com/mattyv/ply-vis/releases). Download the assets
+for the version you want, then install the `.vsix` through VS Code's
+**Extensions: Install from VSIX...** command, or the `.zip` through JetBrains'
+**Settings → Plugins → Install Plugin from Disk...** action.
+
+### Build from source
+
+This checkout builds Ply Visual 0.2.0. To build, package, and install the VS Code
+extension, run these commands from the repository root with Node.js 22 and the
+`code` command on your `PATH`:
 
 ```sh
+npm ci
 npm run install:local
 ```
 
