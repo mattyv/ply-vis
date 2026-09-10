@@ -252,10 +252,16 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     const explicitDeclaration = strip?.startsWith('Declaration view') === true;
     const explicitEvidence = strip?.startsWith('Evidence view') === true;
     const drawn = Object.values(envelope.elements);
-    const legacyPromisesOnly = envelope.run.tool.version === 'render'
-      || (drawn.length > 0 && drawn.every((element) => classifyElement(element) === 'declared'));
-    const promisesOnly = explicitDeclaration || (!explicitEvidence && legacyPromisesOnly);
+    const promisesOnly = explicitDeclaration
+      || (!explicitEvidence && envelope.run.tool.version === 'render');
     if (promisesOnly) return { text: 'Promises only — no run has checked this yet, so nothing here can ever be green.' };
+    const legacyDeclaredOnly = !explicitEvidence
+      && drawn.length > 0
+      && drawn.every((element) => classifyElement(element) === 'declared');
+    if (legacyDeclaredOnly) return {
+      text: 'This older drawing shows declarations only; it does not record whether it came from render or verification.',
+      title: `Artifact ${envelope.run.id}`,
+    };
     const text = `Showing a run completed ${new Date(envelope.run.completedAt).toLocaleString()}.`;
     // Ply moves its build identity whenever its behaviour could have
     // changed, and refuses to carry a stored result across that move. So a

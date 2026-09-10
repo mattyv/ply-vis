@@ -209,6 +209,21 @@ describe('persistent provenance', () => {
     viewer.destroy();
   });
 
+  it('does not invent no-run provenance for an older all-declared artifact', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    const envelope = {
+      ...declaredOnlyEnvelope(),
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><g data-element-id="workspace"><rect width="10" height="10"/></g></svg>',
+    };
+    viewer.load(envelope);
+
+    expect(provenanceOf(container).textContent).toContain('does not record whether');
+    expect(provenanceOf(container).textContent).not.toContain('no run');
+    viewer.destroy();
+  });
+
   it('does not let zooming change or clear the provenance line', () => {
     const container = document.createElement('div');
     document.body.append(container);
