@@ -22,4 +22,22 @@ describe('current Ply SVG sanitization', () => {
     expect(clean).toContain('fill="url(#unclaimed-hatch)"');
     expect(clean).toContain('fill="#3c4658"');
   });
+
+  it('keeps acceptance requirements and their complete hover text', () => {
+    const requirement = 'A captured decimal-string response maps to the exact records';
+    const clean = sanitizeSvg(`<svg xmlns="http://www.w3.org/2000/svg">
+      <style>.acceptance-requirement{fill:#6b7280;font-size:10px}</style>
+      <g class="acceptance-row"><title>${requirement}\nexact test: mapping</title>
+        <text class="acceptance-text">decimal_response_maps — passed</text>
+        <text class="acceptance-requirement" textLength="372.0" lengthAdjust="spacingAndGlyphs">${requirement}</text>
+      </g>
+    </svg>`);
+
+    expect(clean).toContain(`class="acceptance-requirement"`);
+    expect(clean).toContain(`fill="#6b7280"`);
+    expect(clean).toContain(`<title>${requirement}\nexact test: mapping</title>`);
+    expect(clean).toContain(`textLength="372.0"`);
+    expect(clean).toContain(`lengthAdjust="spacingAndGlyphs"`);
+    expect(clean).toContain(`>${requirement}</text>`);
+  });
 });

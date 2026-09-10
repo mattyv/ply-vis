@@ -776,7 +776,7 @@
             },
             {
               "id": "056be47d4acd1e6d",
-              "text": "The viewer legend names module boundaries and application acceptance separately, matching the SVG bands without treating either as function-proof evidence.",
+              "text": "The viewer legend names module boundaries and application acceptance separately, matching the SVG bands without treating either as function-proof evidence. Acceptance rows preserve the user-written requirement, its browser-enforced text width, and its complete hover text through SVG sanitization. The persistent provenance line follows the renderer's explicit Declaration view / Evidence view strip, so a completed run with only unchecked items cannot be mistaken for a document that was never run; older artifacts without that strip are described as ambiguous instead of inventing a run history.",
               "ts": 1789025539156,
               "tag": "whole-scope-legend"
             }

@@ -142,18 +142,15 @@ describe('viewer framing', () => {
 });
 
 describe('persistent provenance', () => {
-  // A real declaration-only render's `tool.version` is the CLI's own build
-  // version (e.g. "0.1.0") -- never the literal string "render". Using that
-  // literal as the signal, as the code used to, means this case never fires
-  // outside a test fixture. What is actually true for every render, and
-  // untrue the moment a real check has run, is that no element carries
-  // earned/gap/violation evidence -- so that is what provenance keys off.
+  // The renderer puts authoritative provenance in the visible verdict strip.
+  // Verdicts cannot supply it: a completed verification can legitimately
+  // contain only unclaimed/declared elements.
   function declaredOnlyEnvelope() {
     const evidence = { verdict: 'unclaimed', statuses: [], reused: false };
     return {
       protocolVersion: 1,
       run: { id: 'declared-run', completedAt: '2026-09-01T00:00:00Z', root: { path: '.' }, tool: { name: 'cargo-ply', version: '0.1.0' }, outcome: 'missing_evidence' },
-      svg: '<svg xmlns="http://www.w3.org/2000/svg"><g data-element-id="workspace"><rect width="10" height="10"/></g></svg>',
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><text class="verdict-strip-text">Declaration view · 1 component</text><g data-element-id="workspace"><rect width="10" height="10"/></g></svg>',
       elements: { workspace: { id: 'workspace', kind: 'workspace', label: 'workspace', evidence, diagnosticIds: [] } },
       diagnostics: [],
     };
@@ -163,7 +160,7 @@ describe('persistent provenance', () => {
     return {
       protocolVersion: 1,
       run: { id: '1788395523-974148000-28612', completedAt: '2026-09-04T13:18:13Z', root: { path: '.' }, tool: { name: 'cargo-ply', version: '0.1.0' }, outcome: 'clean' },
-      svg: '<svg xmlns="http://www.w3.org/2000/svg"><g data-element-id="workspace"><rect width="10" height="10"/></g></svg>',
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><text class="verdict-strip-text">Evidence view · clean</text><g data-element-id="workspace"><rect width="10" height="10"/></g></svg>',
       elements: { workspace: { id: 'workspace', kind: 'workspace', label: 'workspace', evidence: { verdict: 'fuzzed(64)', statuses: [], reused: false, state: 'earned' }, diagnosticIds: [] } },
       diagnostics: [],
     };
@@ -193,6 +190,37 @@ describe('persistent provenance', () => {
     const when = new Date(envelope.run.completedAt).toLocaleString();
     expect(provenanceOf(container).textContent).toBe(`Showing a run completed ${when}.`);
     expect(provenanceOf(container).title).toBe(`Run ${envelope.run.id}`);
+    viewer.destroy();
+  });
+
+  it('does not relabel a completed evidence view when every element remains declared', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    const envelope = {
+      ...declaredOnlyEnvelope(),
+      run: { ...declaredOnlyEnvelope().run, id: 'completed-unclaimed' },
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><text class="verdict-strip-text">Evidence view · 1 promises nothing</text><g data-element-id="workspace"><rect width="10" height="10"/></g></svg>',
+    };
+    viewer.load(envelope);
+
+    expect(provenanceOf(container).textContent).toContain('Showing a run completed');
+    expect(provenanceOf(container).textContent).not.toContain('no run');
+    viewer.destroy();
+  });
+
+  it('does not invent no-run provenance for an older all-declared artifact', () => {
+    const container = document.createElement('div');
+    document.body.append(container);
+    const viewer = mountViewer(container, { post: () => undefined });
+    const envelope = {
+      ...declaredOnlyEnvelope(),
+      svg: '<svg xmlns="http://www.w3.org/2000/svg"><g data-element-id="workspace"><rect width="10" height="10"/></g></svg>',
+    };
+    viewer.load(envelope);
+
+    expect(provenanceOf(container).textContent).toContain('does not record whether');
+    expect(provenanceOf(container).textContent).not.toContain('no run');
     viewer.destroy();
   });
 

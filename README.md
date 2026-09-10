@@ -56,7 +56,8 @@ edge control to show or hide it.
 
 Turn on **Show legend** to decode only the marks in the current drawing. The legend
 names module-boundary architecture checks and application acceptance tests separately;
-it does not fold either into function-level evidence.
+it does not fold either into function-level evidence. Each acceptance row keeps the
+user-written requirement visible and preserves its complete text on hover.
 
 ## Install
 
