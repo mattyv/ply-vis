@@ -242,31 +242,19 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     legend.hidden = false;
   }
 
-  /**
-   * What produced this envelope, in a sentence a first-time reader can trust
-   * without opening anything else.
-   *
-   * `run.tool.version === 'render'` looks like the obvious signal -- it is
-   * what test fixtures use to stand in for a declaration-only render -- but
-   * a real `cargo ply --json render` reports the CLI's own build version
-   * there (e.g. "0.1.0"), the same as a published run does. Checked against
-   * a real render (`demos/verified-green`), that version string is never
-   * the literal "render", so keying off it would leave every real render
-   * mislabelled as a run. What is actually true of a declaration-only
-   * render, and stays true only until a real check runs, is that no element
-   * carries earned, gap, or violation evidence -- so that is the signal used
-   * here, with the old literal kept as a harmless extra check.
-   */
+  /** What produced this envelope, in a sentence a first-time reader can trust. */
   function describeProvenance(envelope: VisualEnvelope): { text: string; title?: string } {
-    // `every` is true of an empty list, so an envelope carrying no elements
-    // at all satisfied "every element is declaration-only" and a real run
-    // that happens to draw nothing was described as a drawing no check has
-    // ever touched -- a claim about evidence, invented out of an absence of
-    // it (external review, 2026-09-07). The inference needs something to
-    // infer from; the explicit `render` signal stands on its own.
+    // Current Ply puts the authoritative view kind in the visible strip. It
+    // cannot be inferred from verdicts: a completed verify can draw only
+    // unclaimed elements. Keep the old inference solely for artifacts made
+    // before the strip named its provenance.
+    const strip = stage.querySelector<SVGTextElement>('.verdict-strip-text')?.textContent?.trim();
+    const explicitDeclaration = strip?.startsWith('Declaration view') === true;
+    const explicitEvidence = strip?.startsWith('Evidence view') === true;
     const drawn = Object.values(envelope.elements);
-    const promisesOnly = envelope.run.tool.version === 'render'
+    const legacyPromisesOnly = envelope.run.tool.version === 'render'
       || (drawn.length > 0 && drawn.every((element) => classifyElement(element) === 'declared'));
+    const promisesOnly = explicitDeclaration || (!explicitEvidence && legacyPromisesOnly);
     if (promisesOnly) return { text: 'Promises only — no run has checked this yet, so nothing here can ever be green.' };
     const text = `Showing a run completed ${new Date(envelope.run.completedAt).toLocaleString()}.`;
     // Ply moves its build identity whenever its behaviour could have
