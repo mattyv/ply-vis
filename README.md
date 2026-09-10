@@ -54,6 +54,10 @@ Ply Visual hides unrelated geometry while focused. Hover diagram items for Ply's
 tooltips. The Details pane starts closed; select an item to open it, or use the
 edge control to show or hide it.
 
+Turn on **Show legend** to decode only the marks in the current drawing. The legend
+names module-boundary architecture checks and application acceptance tests separately;
+it does not fold either into function-level evidence.
+
 ## Install
 
 Install the [Ply command](https://github.com/mattyv/ply#install) separately to run

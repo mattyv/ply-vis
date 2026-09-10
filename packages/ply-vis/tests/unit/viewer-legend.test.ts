@@ -55,7 +55,7 @@ describe('evidence legend', () => {
   });
 
   it('adds only the declaration notation and color channels present in the SVG', () => {
-    const svg = '<rect class="ceiling-bounded"/><rect class="ceiling-unclaimed"/><rect class="fn-chip-box-synth"/><path class="strict-notch"/><g class="fn-shield"><text>shield</text></g><g class="unresolved-pin"><circle r="4"/><text>#6</text></g><g class="edge-call"><path/></g><g class="edge-flow"><path/></g><g class="edge-entry"><path/></g><g class="deny-rule"><path class="deny-line"/><line class="deny-bar"/></g>';
+    const svg = '<rect class="ceiling-bounded"/><rect class="ceiling-unclaimed"/><rect class="fn-chip-box-synth"/><path class="strict-notch"/><g class="fn-shield"><text>shield</text></g><g class="unresolved-pin"><circle r="4"/><text>#6</text></g><g class="edge-call"><path/></g><g class="edge-flow"><path/></g><g class="edge-entry"><path/></g><g class="deny-rule"><path class="deny-line"/><line class="deny-bar"/></g><g class="architecture-scope"><rect/></g><g class="acceptance"><rect/></g>';
     const { viewer, toggle, legend } = mountLegend(svg);
     check(toggle);
 
@@ -69,12 +69,16 @@ describe('evidence legend', () => {
     expect(legend.textContent).toContain('Data flowDashed arrow');
     expect(legend.textContent).toContain('External entryDashed arrow from outside');
     expect(legend.textContent).toContain('Forbidden callThis call is not allowed');
+    expect(legend.textContent).toContain('Module boundariesReferences between modules in one crate');
+    expect(legend.textContent).toContain('Application acceptanceFinite production-path tests');
     expect(legend.querySelector('[data-symbol="strict"]')).not.toBeNull();
     expect(legend.querySelector('[data-symbol="call"]')).not.toBeNull();
     expect(legend.querySelector('[data-symbol="flow"]')).not.toBeNull();
     expect(legend.querySelector('[data-symbol="decision"]')?.textContent).toBe('#');
     expect(legend.querySelector('[data-symbol="trusted"]')?.textContent).toBe('\u26c9');
     expect(legend.querySelector('[data-symbol="denied"]')).not.toBeNull();
+    expect(legend.querySelector('[data-symbol="architecture"]')).not.toBeNull();
+    expect(legend.querySelector('[data-symbol="acceptance"]')).not.toBeNull();
     viewer.destroy();
   });
 

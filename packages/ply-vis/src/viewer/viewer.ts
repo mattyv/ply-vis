@@ -236,6 +236,8 @@ export function mountViewer(container: HTMLElement, bridge: HostBridge, initialE
     if (visibleInStage('.edge-flow')) appendItem('Data flow', 'Dashed arrow', { symbol: 'flow' });
     if (visibleInStage('.edge-entry')) appendItem('External entry', 'Dashed arrow from outside', { symbol: 'entry' });
     if (visibleInStage('.deny-rule')) appendItem('Forbidden call', 'This call is not allowed', { symbol: 'denied' });
+    if (visibleInStage('.architecture-scope')) appendItem('Module boundaries', 'References between modules in one crate', { symbol: 'architecture' });
+    if (visibleInStage('.acceptance')) appendItem('Application acceptance', 'Finite production-path tests', { symbol: 'acceptance' });
     legend.append(heading, list);
     legend.hidden = false;
   }

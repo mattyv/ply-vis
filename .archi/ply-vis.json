@@ -773,6 +773,12 @@
               "id": "note-vis-one-canvas",
               "text": "Declared intent is the base visual grammar. Earned evidence, gaps, narrowed coverage, and violations appear as filterable overlays on the same canvas.",
               "ts": 1787892870000
+            },
+            {
+              "id": "056be47d4acd1e6d",
+              "text": "The viewer legend names module boundaries and application acceptance separately, matching the SVG bands without treating either as function-proof evidence.",
+              "ts": 1789025539156,
+              "tag": "whole-scope-legend"
             }
           ],
           "vis-host-bridge": [
